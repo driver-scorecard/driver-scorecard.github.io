@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Driver Scorecard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="text-slate-300">
+    <div id="loading-overlay">
+        <h1 class="text-5xl font-extrabold text-white">Driver Scorecard</h1>
+        <div id="progress-bar-container">
+            <div id="progress-bar"></div>
+        </div>
+        <p class="text-sm text-slate-500 mt-4">Powered by Spotter.ai</p>
+    </div>
+
+    <div class="min-h-screen">
+        <main class="p-4 sm:p-6 lg:p-8">
+            <header class="flex flex-wrap justify-between items-end mb-6 gap-4">
+                <div class="flex flex-wrap items-end gap-4">
+                    <div class="w-56">
+
+                        <div class="relative rounded-lg shadow-xl shadow-black/40">
+                            <select id="pay-date-select" class="w-full appearance-none py-2 pl-4 pr-10 border border-slate-700 bg-slate-800 text-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"></select>
+                            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-400">
+                                <svg class="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="general-filter-container" class="relative">
+                        <button id="general-filter-btn" class="flex items-center justify-center w-10 h-10 bg-slate-800 border border-slate-700 text-slate-200 rounded-lg hover:bg-slate-700 transition-colors shadow-xl shadow-black/40" title="Filter Drivers">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                            </svg>
+                        </button>
+                        <div id="general-filter-panel" class="hidden absolute left-0 mt-1 w-[700px] bg-slate-800 border border-slate-700 rounded-lg shadow-lg max-h-[90vh] overflow-y-auto z-30">
+                            <div id="filter-panel-header" class="flex justify-between items-center p-3 border-b border-slate-700 sticky top-0 bg-slate-800 z-20">
+                                <div class="flex items-center space-x-4">
+                                    <label class="flex items-center space-x-2 cursor-pointer">
+                                        <input type="radio" name="filter-logic" value="AND" class="h-4 w-4 bg-slate-700 border-slate-500 text-blue-500 focus:ring-blue-500" checked>
+                                        <span class="text-sm font-medium text-slate-300">AND</span>
+                                    </label>
+                                    <label class="flex items-center space-x-2 cursor-pointer">
+                                        <input type="radio" name="filter-logic" value="OR" class="h-4 w-4 bg-slate-700 border-slate-500 text-blue-500 focus:ring-blue-500">
+                                        <span class="text-sm font-medium text-slate-300">OR</span>
+                                    </label>
+                                </div>
+                                <button id="remove-all-filters-btn" class="flex items-center space-x-1 text-sm text-red-400 hover:text-red-300 font-semibold transition-colors">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                    <span>REMOVE ALL</span>
+                                </button>
+                            </div>
+                            <div id="filter-rows-container" class="p-4 space-y-4">
+                            </div>
+                            <div id="filter-panel-footer" class="p-2 border-t border-slate-700 sticky bottom-0 bg-slate-800 z-20">
+                                <button id="add-filter-btn" class="flex items-center space-x-1 text-sm text-blue-400 hover:text-blue-300 font-semibold">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                    <span>ADD FILTER</span>
+                                </button>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+                <div class="flex flex-wrap items-end gap-4">
+                     <div class="relative w-full md:w-64 shadow-xl shadow-black/40 rounded-lg">
+                         <span class="absolute inset-y-0 left-0 flex items-center pl-3"><svg class="w-5 h-5 text-slate-500" viewBox="0 0 24 24" fill="none"><path d="M21 21L15 15M17 10C17 13.866 13.866 17 10 17C6.13401 17 3 13.866 3 10C3 6.13401 6.13401 3 10 3C13.866 3 17 6.13401 17 10Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg></span>
+                         <input type="search" id="search-input" placeholder="Search drivers..." class="w-full pl-10 pr-4 py-2 border border-slate-700 bg-slate-800 text-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                     </div>
+                     <button id="create-manual-report-btn" class="flex items-center justify-center w-56 gap-2 text-sm font-semibold bg-slate-800 border border-slate-700 text-slate-200 rounded-lg px-4 py-2 hover:bg-slate-700 transition-colors shadow-xl shadow-black/40" title="Create a one-off manual report">
+                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                         <span>Create Manual Report</span>
+                     </button>
+                    <button id="hide-zero-rows-toggle" class="flex items-center justify-center w-10 h-10 bg-slate-800 border border-slate-700 text-slate-200 rounded-lg hover:bg-slate-700 transition-colors shadow-xl shadow-black/40" title="Toggle Zero Rows">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59" />
+                        </svg>
+                    </button>
+                    <div id="column-toggle-filter" class="relative">
+                        <button id="column-toggle-btn" class="flex items-center justify-center w-10 h-10 bg-slate-800 border border-slate-700 text-slate-200 rounded-lg hover:bg-slate-700 transition-colors shadow-xl shadow-black/40" title="Manage Columns">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+                            </svg>
+                        </button>
+                        <div id="column-toggle-options" class="hidden absolute right-0 mt-1 w-56 bg-slate-800 border border-slate-700 rounded-lg shadow-lg max-h-60 overflow-auto z-30">
+                        </div>
+                    </div>
+                    <button id="open-settings-btn" class="flex items-center justify-center w-10 h-10 bg-slate-800 border border-slate-700 text-slate-200 rounded-lg hover:bg-slate-700 transition-colors shadow-xl shadow-black/40" title="Open Settings">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                    </button>
+                </div>
+            </header>
+            
+            <div class="bg-slate-900 shadow-2xl shadow-black/40 rounded-xl border-2 border-black">
+                <div id="table-wrapper" class="table-container">
+                    <table id="main-table" class="min-w-full text-sm">
+                        <thead id="main-table-head">
+                        </thead>
+                        <tbody id="driver-table-body" class="divide-y divide-slate-800">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div id="settings-panel" class="fixed top-0 right-0 h-full w-full max-w-2xl bg-slate-900 border-l border-slate-700 shadow-2xl z-50">
+        <div class="h-full flex flex-col">
+            <header class="flex justify-between items-center p-5 border-b border-slate-700 flex-shrink-0">
+                <h2 class="text-xl font-bold text-slate-100">Calculation Rules</h2>
+                <button id="close-settings-btn" class="p-2 rounded-full hover:bg-slate-700 transition-colors"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg></button>
+            </header>
+            <div id="settings-content" class="flex-grow p-5 overflow-y-auto space-y-5">
+            </div>
+            <footer class="p-4 border-t border-slate-700 flex-shrink-0 flex justify-end">
+                <button id="save-settings-btn" class="bg-blue-600 text-white font-bold py-2 px-5 rounded-lg hover:bg-blue-500 transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-blue-500">
+                    Save & Recalculate
+                </button>
+            </footer>
+        </div>
+    </div>
+    <div id="settings-overlay" class="fixed inset-0 bg-black bg-opacity-70 z-40 hidden"></div>
+
+    <div id="edit-panel" class="fixed top-0 right-0 h-full w-full max-w-md bg-slate-900 border-l border-slate-700 shadow-2xl z-50">
+        <div class="h-full flex flex-col">
+            <header class="flex justify-between items-center p-5 border-b border-slate-700 flex-shrink-0">
+                <h2 class="text-xl font-bold text-slate-100">Manual Report for <span id="edit-driver-name"></span></h2>
+                <button id="close-edit-btn" class="p-2 rounded-full hover:bg-slate-700 transition-colors"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg></button>
+            </header>
+            <div id="edit-content" class="flex-grow p-5 overflow-y-auto space-y-4">
+            </div>
+            <footer class="p-4 border-t border-slate-700 flex-shrink-0 flex justify-end">
+                <button id="download-manual-report-btn" class="bg-blue-600 text-white font-bold py-2 px-5 rounded-lg hover:bg-blue-500 transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-blue-500">
+                    Download Manual Report
+                </button>
+            </footer>
+        </div>
+    </div>
+    <div id="edit-overlay" class="fixed inset-0 bg-black bg-opacity-70 z-40 hidden"></div>
+    
+    <div id="toast">Copied to clipboard!</div>
+
+    <div id="pin-modal" class="fixed inset-0 bg-black bg-opacity-70 z-50 hidden items-center justify-center">
+        <div class="bg-slate-800 p-6 rounded-lg shadow-xl border border-slate-700 w-full max-w-sm">
+            <h3 class="text-lg font-bold text-slate-100 mb-4">Enter PIN to Save</h3>
+            <p class="text-sm text-slate-400 mb-4">You must enter the PIN to make changes to the calculation rules.</p>
+            <input type="password" id="pin-input" class="w-full py-2 px-4 border border-slate-600 rounded-md shadow-sm sm:text-sm bg-slate-200 text-black" placeholder="****">
+            <p id="pin-error" class="text-red-500 text-xs mt-2 hidden">Invalid PIN. Please try again.</p>
+            <div class="mt-5 flex justify-end gap-3">
+                <button id="pin-cancel-btn" class="text-sm font-semibold text-slate-300 hover:text-slate-100 py-2 px-4 rounded-lg">Cancel</button>
+                <button id="pin-submit-btn" class="bg-blue-600 text-white font-bold py-2 px-5 rounded-lg hover:bg-blue-500 transition-colors shadow-sm">Submit</button>
+            </div>
+        </div>
+    </div>
+    <div id="history-modal" class="fixed inset-0 bg-black bg-opacity-70 z-50 hidden items-center justify-center">
+        <div class="bg-slate-900 border border-slate-700 rounded-lg shadow-2xl w-full max-w-6xl h-[90vh] flex flex-col">
+            <header class="flex justify-between items-center p-4 border-b border-slate-700 flex-shrink-0">
+                <span class="text-lg font-bold text-slate-100">Historical Data: <span id="history-driver-name" class="font-normal text-slate-300"></span></span>
+                <div class="flex items-center gap-4">
+                    <div id="history-view-options" class="hidden flex items-center gap-4">
+                        <label for="history-group-toggle" class="flex items-center cursor-pointer">
+                            <span class="mr-2 text-sm text-slate-300">Group by Day</span>
+                            <div class="relative">
+                                <input type="checkbox" id="history-group-toggle" class="sr-only">
+                                <div class="block bg-slate-700 w-10 h-6 rounded-full"></div>
+                                <div class="dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition"></div>
+                            </div>
+                        </label>
+                        <div id="history-filter-container" class="relative">
+                            <select id="history-days-filter" class="w-full appearance-none py-1 pl-3 pr-8 border border-slate-700 bg-slate-800 text-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                                <option value="1">Last Day</option>
+                                <option value="3">Last 3 Days</option>
+                                <option value="5">Last 5 Days</option>
+                                <option value="7">Last 7 Days</option>
+                                <option value="10">Last 10 Days</option>
+                                <option value="all" selected>All Time</option>
+                            </select>
+                            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-400">
+                               <svg class="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+                            </div>
+                        </div>
+                    </div>
+                    <button id="close-history-btn" class="p-2 rounded-full hover:bg-slate-700 transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                </div>
+            </header>
+
+            <div class="flex-grow p-4 overflow-y-hidden flex flex-col">
+                <div class="flex border-b border-slate-700 mb-4 flex-shrink-0">
+                    <button data-tab="safety" class="history-tab active-tab px-4 py-2 text-sm font-semibold text-white border-b-2 border-blue-500">Safety</button>
+                    <button data-tab="fuel" class="history-tab px-4 py-2 text-sm font-semibold text-slate-400">MPG</button>
+                    <button data-tab="pos" class="history-tab px-4 py-2 text-sm font-semibold text-slate-400">Fuel PO</button>
+                    <button data-tab="changelog" class="history-tab px-4 py-2 text-sm font-semibold text-slate-400">Changelog</button>
+                </div>
+
+                <div class="flex-grow overflow-y-auto">
+                    <div id="changelog-content" class="history-tab-content">
+                    </div>
+                    <div id="safety-content" class="history-tab-content hidden">
+                    </div>
+                    <div id="fuel-content" class="history-tab-content hidden">
+                    </div>
+                    <div id="pos-content" class="history-tab-content hidden">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="activity-history-modal" class="fixed inset-0 bg-black bg-opacity-70 z-50 hidden items-center justify-center">
+        <div class="bg-slate-900 border border-slate-700 rounded-lg shadow-2xl w-full max-w-2xl h-[70vh] flex flex-col">
+            <header class="flex justify-between items-center p-4 border-b border-slate-700 flex-shrink-0">
+                <span class="text-lg font-bold text-slate-100">Weekly Activity History: <span id="activity-history-driver-name" class="font-normal text-slate-300"></span></span>
+                <button id="close-activity-history-btn" class="p-2 rounded-full hover:bg-slate-700 transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+            </header>
+            <div id="activity-history-content" class="flex-grow p-4 overflow-y-auto">
+                </div>
+        </div>
+    </div>
+
+    <script type="module" src="js/main.js"></script>
+    
+    <div id="global-tooltip" class="hidden"></div>
+</body>
+</html>
