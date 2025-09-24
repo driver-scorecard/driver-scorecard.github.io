@@ -52,6 +52,7 @@ export const columnConfig = {
     franchise: { title: 'Franchise', type: 'text', class: 'text-center' },
     company: { title: 'Company', type: 'text', class: 'text-center' },
     contract_type: { title: 'Contract Type', type: 'text', class: 'text-center' },
+    pay_delayWks: { title: 'Pay Delay', type: 'number', class: 'text-center' },
     safetyScore: { title: 'Safety Score', type: 'percent', class: 'text-center' },
     speedingAlerts: { title: 'Speeding Alerts', type: 'number', class: 'text-center' },
     speeding_over11mph: { title: 'Speeding (11mph>)', type: 'number', class: 'text-center' },
