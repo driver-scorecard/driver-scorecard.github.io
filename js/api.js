@@ -88,7 +88,8 @@ export async function fetchDriverData() {
             mpg: parseFloat(d.gallons_fictive > 0 ? (d.distance / d.gallons_fictive) : 0).toFixed(1),
             pay_date: d.pay_date, bonuses: 0, penalties: 0,
             distance: d.distance || 0,
-            gallons_fictive: d.gallons_fictive || 0
+            gallons_fictive: d.gallons_fictive || 0,
+            pay_delayWks: d.pay_delayWks || 1
         }));
         setCachedData(cacheKey, formattedData);
         return formattedData;
