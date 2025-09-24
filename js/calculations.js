@@ -254,12 +254,16 @@ export function processDriverDataForDate(driversForDate, mileageData, settings, 
 
         // New "Days Taken" Logic from Changelog
         driversForDate.forEach(driver => {
-            // Define the current week's boundaries (Tuesday to Monday)
-            const payDate = new Date(selectedDateStr + 'T12:00:00Z');
-            const dayOfWeek = payDate.getUTCDay();
+            // Define the performance date based on pay_delayWks
+            const performanceDate = new Date(selectedDateStr + 'T12:00:00Z');
+            if (driver.pay_delayWks === 2) {
+                performanceDate.setUTCDate(performanceDate.getUTCDate() - 7);
+            }
+            
+            const dayOfWeek = performanceDate.getUTCDay();
             const daysToSubtract = (dayOfWeek + 6) % 7;
-            const monday = new Date(payDate);
-            monday.setUTCDate(payDate.getUTCDate() - daysToSubtract);
+            const monday = new Date(performanceDate);
+            monday.setUTCDate(performanceDate.getUTCDate() - daysToSubtract);
             monday.setUTCHours(23, 59, 59, 999); // End of Monday
 
             const tuesday = new Date(monday);
@@ -316,7 +320,11 @@ export function processDriverDataForDate(driversForDate, mileageData, settings, 
                 const driverDaysTakenRecords = daysTakenHistory.filter(h => h.driver_name === driver.name);
 
                 // --- START: DYNAMIC LOOP LIMIT ---
-                // Find the earliest date from both mileage and days taken history for this driver
+                const performanceDateForLimit = new Date(selectedDateStr + 'T12:00:00Z');
+                 if (driver.pay_delayWks === 2) {
+                    performanceDateForLimit.setUTCDate(performanceDateForLimit.getUTCDate() - 7);
+                }
+
                 const firstMileageDate = driverMileageRecords.length > 0 
                     ? new Date(Math.min(...driverMileageRecords.map(r => new Date(r.date)))) 
                     : null;
@@ -333,7 +341,7 @@ export function processDriverDataForDate(driversForDate, mileageData, settings, 
 
                 let maxWeeksToScan = 52; // Default to 52
                 if (earliestRecordDate) {
-                    const timeDiff = selectedDate.getTime() - earliestRecordDate.getTime();
+                    const timeDiff = performanceDateForLimit.getTime() - earliestRecordDate.getTime();
                     // Calculate total weeks and add 1 to include the current week
                     maxWeeksToScan = Math.ceil(timeDiff / (1000 * 3600 * 24 * 7)) + 1;
                 }
@@ -342,8 +350,8 @@ export function processDriverDataForDate(driversForDate, mileageData, settings, 
                 let consecutiveWeeks = 0;
 
                 for (let i = 0; i < maxWeeksToScan; i++) {
-                    const weekEndDate = new Date(selectedDate);
-                    weekEndDate.setUTCDate(selectedDate.getUTCDate() - 3 - (i * 7));
+                    const weekEndDate = new Date(performanceDateForLimit);
+                    weekEndDate.setUTCDate(performanceDateForLimit.getUTCDate() - 3 - (i * 7));
                     const weekStartDate = new Date(weekEndDate);
                     weekStartDate.setUTCDate(weekEndDate.getUTCDate() - 6);
 
@@ -402,8 +410,8 @@ export function processDriverDataForDate(driversForDate, mileageData, settings, 
                 }
                 driver.weeksOut = consecutiveWeeks;
 
-                const currentWeekEndDate = new Date(selectedDate);
-                currentWeekEndDate.setUTCDate(selectedDate.getUTCDate() - 3);
+                const currentWeekEndDate = new Date(performanceDateForLimit);
+                currentWeekEndDate.setUTCDate(performanceDateForLimit.getUTCDate() - 3);
                 const currentWeekStartDate = new Date(currentWeekEndDate);
                 currentWeekStartDate.setUTCDate(currentWeekEndDate.getUTCDate() - 6);
                 const weeklyMiles = driverMileageRecords
@@ -412,7 +420,8 @@ export function processDriverDataForDate(driversForDate, mileageData, settings, 
                 driver.milesWeek = Math.round(weeklyMiles);
 
                 if (allSafetyData && allSafetyData.length > 0) {
-                    const safetyRecord = allSafetyData.find(record => record.name === driver.name && record.date.split('T')[0] === selectedDateStr);
+                     const performanceDateStr = formatDate(performanceDateForLimit);
+                    const safetyRecord = allSafetyData.find(record => record.name === driver.name && record.date.split('T')[0] === performanceDateStr);
                     if (safetyRecord && safetyRecord.totalDistance) {
                         driver.samsaraDistance = Math.round(parseFloat(safetyRecord.totalDistance));
                     }
@@ -421,6 +430,9 @@ export function processDriverDataForDate(driversForDate, mileageData, settings, 
                 // --- START: Weekly Activity Calculation ---
                 const weeklyActivityData = [];
                 const payDate = new Date(selectedDateStr + 'T12:00:00Z');
+                if (driver.pay_delayWks === 2) {
+                    payDate.setUTCDate(payDate.getUTCDate() - 7);
+                }
 
                 const dayOfWeek = payDate.getUTCDay(); // Sunday = 0, Monday = 1, ...
                 const daysToSubtract = (dayOfWeek + 6) % 7; // Calculate days to go back to get to Monday
