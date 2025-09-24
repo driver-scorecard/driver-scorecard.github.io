@@ -18,7 +18,7 @@ let allSafetyData = {};
 let driversForDate = [];
 let availableContractTypes = [];
 let orderedColumnKeys = Object.keys(columnConfig);
-const defaultHiddenColumns = ['dispatcher', 'team', 'rpm', 'estimatedNet', 'speeding_over11mph', 'speeding_over16mph', 'franchise', 'company', 'gross'];
+const defaultHiddenColumns = ['dispatcher', 'team', 'rpm', 'estimatedNet', 'speeding_over11mph', 'speeding_over16mph', 'franchise', 'company', 'gross', 'pay_delayWks'];
 let visibleColumnKeys = Object.keys(columnConfig).filter(key => !defaultHiddenColumns.includes(key));
 let pinnedColumns = { left: ['name'], right: ['totalTpog', 'bonuses', 'penalties', 'escrowDeduct', 'actions'] };
 let hideZeroRows = false;
