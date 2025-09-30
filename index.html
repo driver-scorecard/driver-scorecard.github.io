@@ -77,11 +77,21 @@
                          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                          <span>Create Manual Report</span>
                      </button>
-                    <button id="hide-zero-rows-toggle" class="flex items-center justify-center w-10 h-10 bg-slate-800 border border-slate-700 text-slate-200 rounded-lg hover:bg-slate-700 transition-colors shadow-xl shadow-black/40" title="Toggle Zero Rows">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59" />
-                        </svg>
-                    </button>
+                     <div class="relative" id="row-filter-container">
+                        <button id="row-filter-btn" class="flex items-center justify-center w-10 h-10 bg-slate-800 border border-slate-700 text-slate-200 rounded-lg hover:bg-slate-700 transition-colors shadow-xl shadow-black/40" title="Filter Rows">
+                            <svg id="row-filter-icon" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                               <path stroke-linecap="round" stroke-linejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59" />
+                           </svg>
+                       </button>
+                        <div id="row-filter-options" class="hidden absolute right-0 mt-1 w-56 bg-slate-800 border border-slate-700 rounded-lg shadow-lg z-30 text-sm">
+                            <a href="#" class="block px-4 py-2 hover:bg-slate-700" data-filter="none">Show All Rows</a>
+                            <a href="#" class="block px-4 py-2 hover:bg-slate-700" data-filter="zero-rows">Hide Zero Rows</a>
+                            <a href="#" class="block px-4 py-2 hover:bg-slate-700" data-filter="no-samsara">Hide No Samsara</a>
+                            <a href="#" class="block px-4 py-2 hover:bg-slate-700" data-filter="no-prologs">Hide No ProLogs</a>
+                            <a href="#" class="block px-4 py-2 hover:bg-slate-700" data-filter="no-samsara-or-prologs">Hide No Samsara or ProLogs</a>
+                            <a href="#" class="block px-4 py-2 hover:bg-slate-700" data-filter="no-samsara-and-prologs">Hide No Samsara & ProLogs</a>
+                        </div>
+                    </div>
                     <div id="column-toggle-filter" class="relative">
                         <button id="column-toggle-btn" class="flex items-center justify-center w-10 h-10 bg-slate-800 border border-slate-700 text-slate-200 rounded-lg hover:bg-slate-700 transition-colors shadow-xl shadow-black/40" title="Manage Columns">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -204,6 +214,29 @@
                     <div id="changelog-content" class="history-tab-content">
                     </div>
                     <div id="safety-content" class="history-tab-content hidden">
+                        <div class="history-table-wrapper">
+                            <table class="history-table">
+                                <thead>
+                                    <tr>
+                                        <th>Week</th>
+                                        <th>Safety Score</th>
+                                        <th>Samsara Distance</th>
+                                        <th>Light Speeding</th>
+                                        <th>Moderate Speeding</th>
+                                        <th>Heavy Speeding</th>
+                                        <th>Severe Speeding</th>
+                                        <th>Max Speed</th>
+                                        <th>Harsh Brake</th>
+                                        <th>Harsh Turn</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="safety-table-body">
+                                    </tbody>
+                            </table>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="safety-history-chart"></canvas>
+                        </div>
                     </div>
                     <div id="fuel-content" class="history-tab-content hidden">
                     </div>
