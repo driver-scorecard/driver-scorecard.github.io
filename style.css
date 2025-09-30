@@ -14,25 +14,34 @@ tbody .pinned-left, tbody .pinned-right { z-index: 10; }
 thead th.pinned-left, thead th.pinned-right { z-index: 25; }
 .pinned-left { position: sticky; left: 0; }
 .pinned-right { position: sticky; right: 0; }
+.pinned-left { position: sticky; left: 0; }
+.pinned-right { position: sticky; right: 0; }
 .column-menu { z-index: 50; }
 #contract-type-options { z-index: 30; }
 
 /* --- Start Pinned Column Flicker Fix --- */
 thead th {
-    background-color: #1e293b; /* Set background on all header cells */
+    background-color: #1e293b; 
 }
-tbody tr.bg-slate-900 th.pinned-left,
-tbody tr.bg-slate-900 td.pinned-left,
-tbody tr.bg-slate-900 th.pinned-right,
-tbody tr.bg-slate-900 td.pinned-right {
-    background-color: #0f172a;
+
+/* Apply a solid background to all pinned cells.
+   This is the most critical part of the fix. */
+tbody th.pinned-left,
+tbody td.pinned-left,
+tbody th.pinned-right,
+tbody td.pinned-right {
+    background-color: #0f172a; /* Default to the darker row background */
 }
+
+/* Override for alternating rows */
 tbody tr.bg-slate-800\/50 th.pinned-left,
 tbody tr.bg-slate-800\/50 td.pinned-left,
 tbody tr.bg-slate-800\/50 th.pinned-right,
 tbody tr.bg-slate-800\/50 td.pinned-right {
     background-color: #1e293b;
 }
+
+/* Override for hovered rows */
 tbody tr:hover th.pinned-left,
 tbody tr:hover td.pinned-left,
 tbody tr:hover th.pinned-right,
@@ -42,18 +51,14 @@ tbody tr:hover td.pinned-right {
 /* --- End Pinned Column Flicker Fix --- */
 
 /* Apply transition ONLY to non-pinned cells */
-tbody td, tbody th {
+tbody td:not(.pinned-left):not(.pinned-right), 
+tbody th:not(.pinned-left):not(.pinned-right) {
     transition: background-color 0.2s ease-in-out;
 }
-/* REMOVE transition from pinned cells to prevent flicker */
-tbody td.pinned-left, tbody th.pinned-left,
-tbody td.pinned-right, tbody th.pinned-right {
-    transition: none;
-}
 
-/* Handle hover state */
+/* Handle hover state for non-pinned cells */
 tbody tr:hover {
-    background-color: rgba(51, 65, 85, 0.5); /* Hover color for non-pinned cells */
+    background-color: rgba(51, 65, 85, 0.5);
 }
 #settings-panel, #edit-panel {
     transition: transform 0.3s ease-in-out;
@@ -402,6 +407,10 @@ td.distance-samsara-active {
     background-color: #ff6700; /* orange-800 */
 }
 
+.activity-grey {
+    background-color: #475569; /* slate-600 */
+}
+
 /* Adjust tooltip for weekly activity blocks */
 .weekly-activity-block + .tooltip-text {
     width: 80px;
@@ -470,4 +479,9 @@ td.distance-samsara-active {
 .weekly-activity-block.dispatch-override {
     outline: 2px solid #3b82f6; /* blue-500 */
     outline-offset: 1px;
+}
+
+#row-filter-options a.active-filter {
+    background-color: #3b82f6; /* blue-500 */
+    color: #fff;
 }
