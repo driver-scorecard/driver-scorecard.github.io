@@ -15,13 +15,14 @@ let settings = {};
 let allDrivers = [];
 let mileageData = [];
 let allSafetyData = {};
+let financialData = [];
 let driversForDate = [];
 let availableContractTypes = [];
 let orderedColumnKeys = Object.keys(columnConfig);
-const defaultHiddenColumns = ['dispatcher', 'team', 'rpm', 'estimatedNet', 'speeding_over11mph', 'speeding_over16mph', 'franchise', 'company', 'gross', 'pay_delayWks'];
+const defaultHiddenColumns = ['dispatcher', 'team', 'rpm', 'speeding_over11mph', 'speeding_over16mph', 'franchise', 'company', 'gross', 'pay_delayWks', 'stubMiles'];
 let visibleColumnKeys = Object.keys(columnConfig).filter(key => !defaultHiddenColumns.includes(key));
 let pinnedColumns = { left: ['name'], right: ['totalTpog', 'bonuses', 'penalties', 'escrowDeduct', 'actions'] };
-let hideZeroRows = false;
+let activeRowFilter = 'none'; // Can be 'none', 'zero-rows', 'no-samsara', 'no-prologs', 'no-samsara-or-prologs', 'no-samsara-and-prologs'
 let currentEditingDriverId = null;
 let draggedColumnKey = null;
 let overriddenDistances = {};
@@ -30,7 +31,9 @@ let dispatcherOverrides = {};
 
 // --- DOM ELEMENT REFERENCES ---
 const searchInput = document.getElementById('search-input');
-const hideZeroRowsToggle = document.getElementById('hide-zero-rows-toggle');
+const rowFilterBtn = document.getElementById('row-filter-btn');
+const rowFilterOptions = document.getElementById('row-filter-options');
+const rowFilterIcon = document.getElementById('row-filter-icon');
 const payDateSelect = document.getElementById('pay-date-select');
 const generalFilterBtn = document.getElementById('general-filter-btn');
 const generalFilterPanel = document.getElementById('general-filter-panel');
@@ -42,6 +45,24 @@ const columnToggleOptions = document.getElementById('column-toggle-options');
 const tableHead = document.getElementById('main-table-head');
 const tableBody = document.getElementById('driver-table-body');
 const settingsContent = document.getElementById('settings-content');
+
+// --- PERFORMANCE HELPER ---
+/**
+ * Debounce function to limit the rate at which a function is called.
+ * @param {Function} func The function to debounce.
+ * @param {number} delay The delay in milliseconds.
+ * @returns {Function} The debounced function.
+ */
+function debounce(func, delay) {
+    let timeoutId;
+    return function(...args) {
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => {
+            func.apply(this, args);
+        }, delay);
+    };
+}
+
 
 function filterAndRenderTable() {
     const selectedDate = payDateSelect.value;
@@ -74,7 +95,7 @@ function filterAndRenderTable() {
     });
 
     driversForDate = allDrivers.filter(d => d.pay_date && d.pay_date.split('T')[0] === selectedDate);
-    driversForDate = calc.processDriverDataForDate(driversForDate, mileageData, settings, allSafetyData, overriddenDistances, daysTakenHistory, dispatcherOverrides); 
+    driversForDate = calc.processDriverDataForDate(driversForDate, mileageData, settings, allSafetyData, overriddenDistances, daysTakenHistory, dispatcherOverrides, allDrivers); 
 
     const evaluateRule = (driver, rule) => {
         const { column, operator, value } = rule;
@@ -113,15 +134,31 @@ function filterAndRenderTable() {
         }
     });
 
-    if (hideZeroRows) {
+    if (activeRowFilter !== 'none') {
         filteredDrivers = filteredDrivers.filter(driver => {
-            const safetyScore = parseFloat(driver.safetyScore) || 0;
-            const speedingAlerts = parseInt(driver.speedingAlerts, 10) || 0;
-            const weeksOut = parseInt(driver.weeksOut, 10) || 0;
-            const milesWeek = parseFloat(driver.milesWeek) || 0;
-            const mpg = parseFloat(driver.mpg) || 0;
-            const tenure = parseInt(driver.tenure, 10) || 0;
-            return safetyScore !== 0 || speedingAlerts !== 0 || weeksOut !== 0 || milesWeek !== 0 || mpg !== 0 || tenure !== 0;
+            const hasSamsara = (driver.samsaraDistance || 0) > 0;
+            const hasPrologs = (driver.milesWeek || 0) > 0;
+
+            switch (activeRowFilter) {
+                case 'zero-rows':
+                    const safetyScore = parseFloat(driver.safetyScore) || 0;
+                    const speedingAlerts = parseInt(driver.speedingAlerts, 10) || 0;
+                    const weeksOut = parseInt(driver.weeksOut, 10) || 0;
+                    const milesWeek = parseFloat(driver.milesWeek) || 0;
+                    const mpg = parseFloat(driver.mpg) || 0;
+                    const tenure = parseInt(driver.tenure, 10) || 0;
+                    return safetyScore !== 0 || speedingAlerts !== 0 || weeksOut !== 0 || milesWeek !== 0 || mpg !== 0 || tenure !== 0;
+                case 'no-samsara':
+                    return hasSamsara;
+                case 'no-prologs':
+                    return hasPrologs;
+                case 'no-samsara-or-prologs':
+                    return hasSamsara || hasPrologs;
+                case 'no-samsara-and-prologs':
+                    return hasSamsara && hasPrologs;
+                default:
+                    return true;
+            }
         });
     }
 
@@ -185,18 +222,44 @@ function initializeEventListeners() {
     const globalTooltip = document.getElementById('global-tooltip');
     const activityHistoryContent = document.getElementById('activity-history-content');
 
-    searchInput.addEventListener('input', filterAndRenderTable);
+    // Create a debounced version of the filter function
+    const debouncedFilterAndRender = debounce(filterAndRenderTable, 300);
+
+    searchInput.addEventListener('input', debouncedFilterAndRender);
     payDateSelect.addEventListener('change', filterAndRenderTable);
-    hideZeroRowsToggle.addEventListener('click', () => {
-        hideZeroRows = !hideZeroRows;
-        hideZeroRowsToggle.classList.toggle('active', hideZeroRows);
-        const iconPath = hideZeroRows
-            ? "M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.522 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-            : "M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59";
-        const path = hideZeroRowsToggle.querySelector('svg path');
-        if (path) path.setAttribute('d', iconPath);
-        hideZeroRowsToggle.title = hideZeroRows ? 'Show Zero Rows' : 'Hide Zero Rows';
-        filterAndRenderTable();
+    rowFilterBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        rowFilterOptions.classList.toggle('hidden');
+    });
+
+    rowFilterOptions.addEventListener('click', (e) => {
+        e.preventDefault();
+        const clickedOption = e.target.closest('a');
+        if (!clickedOption) return;
+
+        const filterType = clickedOption.dataset.filter;
+        if (filterType) {
+            activeRowFilter = filterType;
+
+            // Remove active class from all options
+            rowFilterOptions.querySelectorAll('a').forEach(opt => opt.classList.remove('active-filter'));
+            // Add active class to the clicked option
+            clickedOption.classList.add('active-filter');
+
+            const eyeIcon = `<path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.522 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>`;
+            const eyeOffIcon = `<path stroke-linecap="round" stroke-linejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59"/>`;
+
+            if (activeRowFilter === 'none') {
+                rowFilterBtn.classList.remove('active');
+                rowFilterIcon.innerHTML = eyeOffIcon;
+            } else {
+                rowFilterBtn.classList.add('active');
+                rowFilterIcon.innerHTML = eyeIcon;
+            }
+
+            filterAndRenderTable();
+            rowFilterOptions.classList.add('hidden');
+        }
     });
     
     columnToggleBtn.addEventListener('click', () => columnToggleOptions.classList.toggle('hidden'));
@@ -401,16 +464,33 @@ function initializeEventListeners() {
     tableBody.addEventListener('mouseover', e => {
         const tooltipContainer = e.target.closest('.tooltip-container');
         if (tooltipContainer) {
-            const tooltipText = tooltipContainer.dataset.tooltip;
-            if (tooltipText) {
-                globalTooltip.textContent = tooltipText;
+            const tooltipType = tooltipContainer.dataset.tooltipType;
+            let tooltipContent = '';
+
+            if (tooltipType === 'breakdown') {
+                const title = tooltipContainer.dataset.tooltipTitle;
+                const breakdown = tooltipContainer.dataset.tooltipBreakdown.split('|');
+                tooltipContent = `<div class="p-1"><div class="font-bold text-base mb-2 text-slate-100">${title}</div><ul class="space-y-1">`;
+                breakdown.forEach(item => {
+                    tooltipContent += `<li class="text-xs whitespace-nowrap">${item}</li>`;
+                });
+                tooltipContent += '</ul></div>';
+            } else {
+                const text = tooltipContainer.dataset.tooltip;
+                if (text) {
+                    tooltipContent = text;
+                }
+            }
+            
+            if (tooltipContent) {
+                globalTooltip.innerHTML = tooltipContent; // Use innerHTML to render the list
                 globalTooltip.classList.remove('hidden');
                 const rect = tooltipContainer.getBoundingClientRect();
                 const tooltipHeight = globalTooltip.offsetHeight;
                 const spaceBelow = window.innerHeight - rect.bottom;
-                let topPosition = rect.bottom + 5;
-                if (spaceBelow < tooltipHeight + 10) {
-                    topPosition = rect.top - tooltipHeight - 5;
+                let topPosition = rect.bottom + 8; // Increased spacing
+                if (spaceBelow < tooltipHeight + 15) {
+                    topPosition = rect.top - tooltipHeight - 8;
                 }
                 globalTooltip.style.left = `${rect.left + rect.width / 2 - globalTooltip.offsetWidth / 2}px`;
                 globalTooltip.style.top = `${topPosition}px`;
@@ -644,19 +724,37 @@ function initializeEventListeners() {
  */
 async function initializeApp() {
     settings = await api.loadSettings();
-    ui.updateLoadingProgress('20%');
+    ui.updateLoadingProgress('15%');
     mileageData = await api.loadMileageData();
-    ui.updateLoadingProgress('40%');
+    ui.updateLoadingProgress('30%');
     allDrivers = await api.fetchDriverData();
-    ui.updateLoadingProgress('60%');
+    ui.updateLoadingProgress('45%');
     allSafetyData = await api.loadAllSafetyData();
-    ui.updateLoadingProgress('75%');
+    ui.updateLoadingProgress('60%');
+    financialData = await api.loadFinancialData();
+    ui.updateLoadingProgress('70%');
     daysTakenHistory = await api.fetchDaysTakenHistory();
     overriddenDistances = await api.loadDistanceOverrides();
     dispatcherOverrides = await api.loadDispatcherOverrides();
     ui.updateLoadingProgress('80%');
 
     if (allDrivers) {
+        // --- MERGE FINANCIAL DATA ---
+        allDrivers.forEach(driver => {
+            const payDate = driver.pay_date.split('T')[0];
+            const financialRecord = financialData.find(fin => 
+                fin.driver_name === driver.name && 
+                fin.pay_date === payDate
+            );
+
+            if (financialRecord) {
+                driver.gross = financialRecord.weekly_gross || driver.gross;
+                driver.stubMiles = financialRecord.weekly_miles || 0;
+                driver.rpm = financialRecord.weekly_rpm || driver.rpm;
+            }
+        });
+        // --- END MERGE ---
+
         const payDates = [...new Set(allDrivers.map(d => d.pay_date && d.pay_date.split('T')[0]))].filter(Boolean).sort().reverse();
         payDateSelect.innerHTML = payDates.map(date => `<option value="${date}">${date}</option>`).join('');
         
