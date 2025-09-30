@@ -175,38 +175,62 @@ export function renderTable(data, state) {
                     content = `-$${reportData.escrowDeduct.toFixed(2)}`;
                     cell.style.color = '#f87171'; // Red color for deductions
                 } else {
-                    content = reportData ? `$${reportData.escrowDeduct.toFixed(2)}` : '-';
+                    content = '-';
                 }
             } else if (key === 'offDays') {
                 content = driver.offDays || 0;
+            } else if (key === 'weeksOut') {
+                const value = parseFloat(driver.weeksOut);
+                if (settings.weeksOutMethod === 'dailyAccrual') {
+                    content = isNaN(value) ? '0.0' : value.toFixed(1);
+                } else {
+                    content = isNaN(value) ? '0' : value.toFixed(0);
+                }
             } else if (key === 'bonuses') {
-                if (!isTpogContract || !reportData) {
+                if (!isTpogContract || !reportData || reportData.totalPositiveBonuses === 0) {
                     content = '-';
                 } else {
                     const updatedReportData = getDriverReportData(driver, settings);
                     const bonusValue = updatedReportData.totalPositiveBonuses;
-                    content = `+${bonusValue.toFixed(1)}%`;
-                    if (bonusValue > 0) {
-                        cell.style.color = '#4ade80'; // Green color for bonuses
-                    }
+                    const bonusDollars = (bonusValue / 100) * (driver.gross || 0);
+                    const breakdown = Object.entries(updatedReportData.bonuses)
+                        .filter(([_, data]) => data.bonus > 0)
+                        .map(([name, data]) => `${name}: +${data.bonus.toFixed(1)}% ($${((data.bonus / 100) * (driver.gross || 0)).toFixed(2)})`)
+                        .join('|'); // Use a separator
+
+                    content = `<div class="tooltip-container" data-tooltip-type="breakdown" data-tooltip-title="Bonuses Breakdown" data-tooltip-breakdown="${breakdown}">
+                                 <span>+${bonusValue.toFixed(1)}%</span>
+                                 <span class="text-xs text-slate-400">($${bonusDollars.toFixed(0)})</span>
+                               </div>`;
+                    
+                    cell.style.color = '#4ade80'; // Green color for bonuses
                 }
             } else if (key === 'penalties') {
-                if (!isTpogContract || !reportData) {
+                if (!isTpogContract || !reportData || reportData.totalPenalties === 0) {
                     content = '-';
                 } else {
                     const updatedReportData = getDriverReportData(driver, settings);
                     const penaltyValue = updatedReportData.totalPenalties;
-                    content = `${penaltyValue.toFixed(1)}%`;
-                    if (penaltyValue < 0) {
-                        cell.style.color = '#f87171'; // Red color for penalties
-                    }
+                    const penaltyDollars = (penaltyValue / 100) * (driver.gross || 0);
+                    const breakdown = Object.entries(updatedReportData.bonuses)
+                        .filter(([_, data]) => data.bonus < 0)
+                        .map(([name, data]) => `${name}: ${data.bonus.toFixed(1)}% ($${((data.bonus / 100) * (driver.gross || 0)).toFixed(2)})`)
+                        .join('|'); // Use a separator
+                    
+                    content = `<div class="tooltip-container" data-tooltip-type="breakdown" data-tooltip-title="Penalties Breakdown" data-tooltip-breakdown="${breakdown}">
+                                 <span>${penaltyValue.toFixed(1)}%</span>
+                                 <span class="text-xs text-slate-400">($${penaltyDollars.toFixed(0)})</span>
+                               </div>`;
+
+                    cell.style.color = '#f87171'; // Red color for penalties
                 }
             } else if (key === 'totalTpog') {
                 if (!isTpogContract || !reportData) {
                     content = '-';
                 } else {
                     const tpog = calculateDriverTPOG(driver, settings);
-                    content = `<span class="font-bold" style="color: #e2b340;">${tpog.toFixed(1)}%</span>`;
+                    const estimatedNet = (tpog / 100) * (driver.gross || 0);
+                    content = `<span class="font-bold" style="color: #e2b340;">${tpog.toFixed(1)}%</span> <span class="text-xs text-slate-400">($${Math.round(estimatedNet)})</span>`;
                 }
             } else if (key === 'actions') {
                 if (!isTpogContract) {
@@ -227,25 +251,16 @@ export function renderTable(data, state) {
                     let colorClass = 'activity-red'; // Default to red
                     const statuses = (activity.statuses || '').toUpperCase();
         
-                    switch (settings.weeksOutMethod) {
-                        case 'daysOff':
-                            if (statuses.includes('DAY_OFF')) {
-                                colorClass = 'activity-red';
-                            } else if (statuses.includes('WITHOUT_LOAD')) {
-                                colorClass = 'activity-orange';
-                            } else if (statuses.includes('ACTIVE')) {
-                                colorClass = 'activity-green';
-                            } else {
-                                 colorClass = activity.mileage > 0 ? 'activity-green' : 'activity-red';
-                            }
-                            break;
-                        case 'daily':
-                            colorClass = activity.mileage >= (settings.weeksOutMileageThreshold || 0) ? 'activity-green' : 'activity-red';
-                            break;
-                        case 'weekly':
-                        default:
-                            colorClass = activity.mileage > 0 ? 'activity-green' : 'activity-red';
-                            break;
+                    if (statuses.includes('DAY_OFF')) {
+                        colorClass = 'activity-red';
+                    } else if (statuses.includes('WITHOUT_LOAD')) {
+                        colorClass = 'activity-orange';
+                    } else if (statuses.includes('ACTIVE')) {
+                        colorClass = 'activity-green';
+                    } else if (statuses.includes('NO DATA') || statuses.includes('NOT_STARTED') || statuses.includes('CONTRACT_ENDED')) {
+                        colorClass = 'activity-grey';
+                    } else {
+                         colorClass = activity.mileage > 0 ? 'activity-green' : 'activity-red';
                     }
         
                     const miles = activity.mileage.toFixed(0);
@@ -289,13 +304,30 @@ export function renderTable(data, state) {
                 content = `${parseFloat(driver.mpgPercentile)}%`;
             } else if (key === 'samsaraDistance') {
                 content = driver.samsaraDistance > 0 ? driver.samsaraDistance : '-';
-            } else if (key === 'gross' || key === 'rpm' || key === 'estimatedNet') {
+            } else if (key === 'gross') {
+                const value = parseFloat(content);
+                if (value === 0) {
+                    content = '-';
+                } else {
+                    content = `$${Math.round(value)}`;
+                }
+            } else if (key === 'rpm') {
                 const value = parseFloat(content);
                 if (value === 0) {
                     content = '-';
                 } else {
                     content = `$${value.toFixed(2)}`;
                 }
+            } else if (key === 'estimatedNet') {
+                if (!isTpogContract || !reportData) {
+                    content = '-';
+                } else {
+                    const netValue = reportData.estimatedNet;
+                    if (netValue === 0) {
+                       content = '-';
+                    } else {
+                       content = `$${Math.round(netValue)}`;
+                }}
             } else if (config.type === 'percent') {
                 content = `${content}%`;
             } else if (key === 'speeding_over11mph' || key === 'speeding_over16mph') {
@@ -307,8 +339,12 @@ export function renderTable(data, state) {
         });
         tableBody.appendChild(tr);
     });
-    // **FIX:** This function is now called directly to prevent the flicker.
-    updateColumnPinning(pinnedColumns);
+    // **FIX 2.0:** Use requestAnimationFrame for the pinning update. This is the modern
+    // way to sync DOM changes with the browser's repaint cycle, which should be
+    // faster and smoother than setTimeout, eliminating the initial delay.
+    requestAnimationFrame(() => {
+        updateColumnPinning(pinnedColumns);
+    });
 }
 
 /**
@@ -322,6 +358,7 @@ export function updateColumnPinning(pinnedColumns) {
         c.style.left = '';
         c.style.right = '';
     });
+
     let leftOffset = 0;
     pinnedColumns.left.forEach(key => {
         const headerCell = document.querySelector(`th[data-key="${key}"]`);
@@ -333,6 +370,7 @@ export function updateColumnPinning(pinnedColumns) {
         });
         leftOffset += headerCell.offsetWidth;
     });
+
     let rightOffset = 0;
     [...pinnedColumns.right].reverse().forEach(key => {
         const headerCell = document.querySelector(`th[data-key="${key}"]`);
@@ -416,7 +454,6 @@ const createTieredBonusEditor = (key, title, unit, tooltipText, settings) => {
 export function renderSettingsContent(settings) {
     const tooltipText = 'The system applies the bonus/penalty for the highest tier the driver has passed. For example, a percentile of 89% would receive the reward for the 80% tier.';
     const speedingMethod = settings.speedingPenaltyMethod || 'percentile';
-    const weeksOutMethod = settings.weeksOutMethod || 'daily';
     const daysOffTooltipText = "A day is counted as a DAY_OFF if: Status is TIME_OFF and there is no load, OR Status is DROP_LIKELY and the truck is DROPPED.";
 
     settingsContent.innerHTML = `
@@ -432,37 +469,23 @@ export function renderSettingsContent(settings) {
             <h2 class="text-lg font-bold text-slate-100 border-b border-slate-700 pb-3">Performance Bonuses</h2>
             <div>
                 <h3 class="text-base font-semibold text-slate-100">Weeks Out Policy</h3>
-                <p class="text-xs text-slate-400 mt-0.5 mb-3">Define the criteria for a week to be counted as "out".</p>
+                <p class="text-xs text-slate-400 mt-0.5 mb-3">A week is counted as "out" if the driver takes no days off.</p>
                 
-                <div class="mb-4">
-                    <label class="block text-xs text-slate-400 mb-2">Calculation Method</label>
+                <div>
+                    <h4 class="text-sm font-medium text-slate-300 mb-2">Calculation Method</h4>
                     <div class="flex items-center space-x-6">
                         <label class="flex items-center space-x-2 cursor-pointer">
-                            <input type="radio" name="weeksOutMethod" value="daily" class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-slate-500" ${weeksOutMethod === 'daily' ? 'checked' : ''}>
-                            <span class="text-sm text-slate-300">Daily</span>
+                            <input type="radio" name="weeksOutMethod" value="fullWeeksOnly" class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-slate-500" ${settings.weeksOutMethod === 'fullWeeksOnly' || !settings.weeksOutMethod ? 'checked' : ''}>
+                            <span class="text-sm text-slate-300">Full Weeks Only</span>
                         </label>
                         <label class="flex items-center space-x-2 cursor-pointer">
-                            <input type="radio" name="weeksOutMethod" value="weekly" class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-slate-500" ${weeksOutMethod === 'weekly' ? 'checked' : ''}>
-                            <span class="text-sm text-slate-300">Weekly</span>
-                        </label>
-                        <label class="flex items-center space-x-2 cursor-pointer">
-                            <input type="radio" name="weeksOutMethod" value="daysOff" class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-slate-500" ${weeksOutMethod === 'daysOff' ? 'checked' : ''}>
-                            <span class="text-sm text-slate-300">No Days Off</span>
-                             <div class="tooltip-container" data-tooltip="${daysOffTooltipText}">
+                            <input type="radio" name="weeksOutMethod" value="dailyAccrual" class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-slate-500" ${settings.weeksOutMethod === 'dailyAccrual' ? 'checked' : ''}>
+                             <span class="text-sm text-slate-300">Daily Accrual</span>
+                             <div class="tooltip-container" data-tooltip="Calculates 'Weeks Out' by adding 1/7th of a week for each active day. The streak accumulates daily and resets to zero after any 'day off'.">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                             </div>
                         </label>
                     </div>
-                </div>
-
-                <div id="weeks-out-daily-settings" class="grid grid-cols-2 gap-3 mt-2 ${weeksOutMethod === 'daily' ? '' : 'hidden'}">
-                    <div><label class="block text-xs text-slate-400 mb-1">Min. Mileage for an Active Day</label><input type="number" id="weeksOutMileageThreshold" class="settings-input" value="${settings.weeksOutMileageThreshold || 0}"></div>
-                    <div><label class="block text-xs text-slate-400 mb-1">Min. Active Days for a Week Out</label><input type="number" id="weeksOutActiveDays" class="settings-input" value="${settings.weeksOutActiveDays || 0}"></div>
-                </div>
-
-                <div id="weeks-out-weekly-settings" class="mt-2 ${weeksOutMethod === 'weekly' ? '' : 'hidden'}">
-                     <label class="block text-xs text-slate-400 mb-1">Min. Weekly Miles for a Week Out</label>
-                     <input type="number" id="weeksOutWeeklyMileage" class="settings-input" value="${settings.weeksOutWeeklyMileage || 0}">
                 </div>
 
                 <div class="flex items-center mt-4">
@@ -547,13 +570,7 @@ export function renderSettingsContent(settings) {
         });
     });
 
-    document.querySelectorAll('input[name="weeksOutMethod"]').forEach(radio => {
-        radio.addEventListener('change', (e) => {
-            const selectedMethod = e.target.value;
-            document.getElementById('weeks-out-daily-settings').classList.toggle('hidden', selectedMethod !== 'daily');
-            document.getElementById('weeks-out-weekly-settings').classList.toggle('hidden', selectedMethod !== 'weekly');
-        });
-    });
+    
 }
 
 /** Opens the settings panel. */
@@ -678,7 +695,33 @@ export function downloadDriverReport(driverData, settings, driversForDate) {
                  card.combinedText = `${card.description} ${card.infoText}`;
                  break;
              case 'safety': const bonusAwarded = reportData.bonuses['Safety Score'].bonus > 0; const scoreMet = driverData.safetyScore >= settings.safetyScoreThreshold; const milesMet = driverData.milesWeek >= settings.safetyScoreMileageThreshold; const hasSpeeding = driverData.speedingAlerts > 0; if (bonusAwarded) { card.description = 'Good score and miles requirement met.'; card.infoText = 'Bonus requirements met.'; } else if (!scoreMet) { card.description = `Score is ${driverData.safetyScore}%. Need ${settings.safetyScoreThreshold}% to qualify.`; card.infoText = `Improve score to earn the bonus.`; } else if (!milesMet) { card.description = `To qualify for the safety bonus, meet the ${settings.safetyScoreMileageThreshold} weekly miles criteria.`; card.infoText = `Drive more to unlock this bonus.`; } else if (hasSpeeding && settings.safetyBonusForfeitedOnSpeeding) { card.description = `Bonus forfeited due to ${driverData.speedingAlerts} speeding alert(s).`; card.infoText = `Needs 0 speeding alerts to unlock +${settings.safetyScoreBonus.toFixed(1)}%`; } else { card.description = 'Safety bonus not awarded this week.'; card.infoText = 'Check requirements for details.'; } break;
-             case 'weeksOut': card.description = reportData.bonuses['Weeks Out'].bonus > 0 ? `Bonus for ${driverData.weeksOut} consecutive weeks out.` : `Currently at ${driverData.weeksOut} weeks out, no bonus.`; const nextWeeksOutTier = settings.weeksOutTiers.find(t => t.bonus > reportData.bonuses['Weeks Out'].bonus); card.infoText = nextWeeksOutTier ? `Stay out for ${nextWeeksOutTier.threshold} weeks for a +${nextWeeksOutTier.bonus.toFixed(1)}% bonus.` : 'Max weeks out bonus reached.'; break;
+             case 'weeksOut':
+                const weeksOutValue = driverData.weeksOut || 0;
+                const weeksOutBonus = reportData.bonuses['Weeks Out'].bonus;
+                const nextWeeksOutTier = settings.weeksOutTiers.find(t => t.bonus > weeksOutBonus);
+
+                if (settings.weeksOutMethod === 'dailyAccrual') {
+                    const totalDays = Math.round(weeksOutValue * 7);
+                    const wholeWeeks = Math.floor(totalDays / 7);
+                    const remainingDays = totalDays % 7;
+                    
+                    let streakText = `${wholeWeeks} week${wholeWeeks !== 1 ? 's' : ''}`;
+                    if (remainingDays > 0) {
+                        streakText += ` and ${remainingDays} day${remainingDays !== 1 ? 's' : ''}`;
+                    }
+
+                    if (weeksOutBonus > 0) {
+                        card.description = `Bonus for your continuous streak of ${Math.floor(weeksOutValue)} weeks.`;
+                    } else {
+                        card.description = `Your current streak is ${streakText}.`;
+                    }
+                    card.infoText = nextWeeksOutTier ? `Stay out for ${nextWeeksOutTier.threshold} weeks to earn a +${nextWeeksOutTier.bonus.toFixed(1)}% bonus.` : 'Max weeks out bonus reached.';
+
+                } else { // fullWeeksOnly
+                    card.description = weeksOutBonus > 0 ? `Bonus for ${weeksOutValue} consecutive weeks out.` : `Currently at ${weeksOutValue} weeks out, no bonus.`;
+                    card.infoText = nextWeeksOutTier ? `Stay out for ${nextWeeksOutTier.threshold} weeks for a +${nextWeeksOutTier.bonus.toFixed(1)}% bonus.` : 'Max weeks out bonus reached.';
+                }
+                break;
         }
         card.combinedText = card.combinedText || `${card.description} ${card.infoText}`;
     });
@@ -687,117 +730,95 @@ export function downloadDriverReport(driverData, settings, driversForDate) {
     const width = 820;
 
     // --- DYNAMIC TIME OFF CARD LOGIC ---
-    const availableDays = reportData.availableOffDays;
-    const daysTaken = driverData.offDays || 0;
-    const startAfterWeeks = settings.timeOffStartAfterWeeks || 3;
-    const baseDays = settings.timeOffBaseDays || 3;
-    
-    let excessDays;
-    if (availableDays >= 0) {
-        excessDays = Math.max(0, daysTaken - availableDays);
+   // --- DYNAMIC TIME OFF CARD LOGIC ---
+   const availableDays = reportData.availableOffDays; // Use the value from the report
+   const daysTaken = driverData.offDays || 0;
+   const escrowDeduction = reportData.escrowDeduct; // Use the value from the report
+   const excessDays = escrowDeduction > 0 ? (escrowDeduction / (settings.escrowDeductionAmount || 1)) : 0;
+   const startAfterWeeks = settings.timeOffStartAfterWeeks || 3;
+
+   let timeOffCard = {
+       title: 'Time Off & Escrow',
+       titleIcon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z',
+       description: '',
+       value: escrowDeduction > 0 ? -escrowDeduction : 0, // Ensure value is negative for deduction
+       statusBarHtml: ''
+   };
+   
+   // --- Generate Description ---
+   if (daysTaken > 0) {
+    if (escrowDeduction > 0) {
+        const balanceBeforeSpending = availableDays + daysTaken - excessDays;
+        timeOffCard.description = `You used ${excessDays} excess day(s) over your ${balanceBeforeSpending} earned days off. Your escrow has been deducted.`;
     } else {
-        excessDays = daysTaken;
+        const remainingDays = availableDays - daysTaken;
+        timeOffCard.description = `You have used ${daysTaken} of your ${availableDays} earned days off. You have ${remainingDays} day(s) remaining.`;
     }
-    const remainingDays = Math.max(0, availableDays - daysTaken);
-    
-    const escrowDeduction = reportData.escrowDeduct;
-
-    let timeOffCard = {
-        title: 'Time Off & Escrow',
-        titleIcon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z',
-        description: '',
-        value: escrowDeduction > 0 ? -escrowDeduction : escrowDeduction,
-        statusBarHtml: ''
-    };
-    
-    const timeOffCardYBase = 200 + performanceCards.length * 90;
-    const timeOffCardY = timeOffCardYBase - 20;
-    const statusBarY = timeOffCardYBase - 12;
-    const descriptionY = timeOffCardY + 40 + 15;
-    
-    let dayBlocksHtml = '';
-    let outlineHtml = '';
-    const greenShades = ['#375D4A', '#44715A', '#52856A', '#619A7B', '#70AC8D'];
-    const redShades = ['#A35B5B', '#914E4E', '#7D4141', '#6A3434', '#582A2A'];
-    
-    if (driverData.weeksOut < startAfterWeeks) {
-        if (daysTaken > 0) {
-            timeOffCard.description = `You used ${daysTaken} day(s) before meeting the ${startAfterWeeks}-week requirement. Your escrow has been deducted.`;
-            const blockWidth = (370 - (daysTaken - 1) * 4) / daysTaken;
-            let currentX = 320;
-            for (let i = 0; i < daysTaken; i++) {
-                const color = redShades[Math.min(i, redShades.length - 1)];
-                dayBlocksHtml += `<g>
-                    <rect x="${currentX}" y="${statusBarY}" width="${blockWidth}" height="24" fill="${color}" />
-                    <text x="${currentX + blockWidth / 2}" y="${statusBarY + 12}" dominant-baseline="middle" text-anchor="middle" font-size="11" font-weight="600" fill="#e2e8f0">${i + 1}</text>
-                </g>`;
-                currentX += blockWidth + 4;
-            }
-            const outlineWidth = (daysTaken * blockWidth) + ((daysTaken - 1) * 4);
-            outlineHtml = `<rect x="318" y="${statusBarY - 2}" width="${outlineWidth + 4}" height="28" fill="none" stroke="#e2e8f0" stroke-width="1.5" />`;
-        } else {
-            timeOffCard.description = `You need ${startAfterWeeks} consecutive weeks out to earn ${baseDays} days off.`;
-            dayBlocksHtml = `<g>
-                    <rect x="320" y="${statusBarY}" width="370" height="24" fill="#334155" />
-                    <text x="${320 + 370 / 2}" y="${statusBarY + 12}" dominant-baseline="middle" text-anchor="middle" font-size="11" font-weight="600" fill="#cbd5e1">0 Days</text>
-                </g>`;
-        }
+} else {
+    const weeksOutVal = driverData.weeksOut || 0;
+    if (weeksOutVal >= startAfterWeeks) {
+         const weeksSinceLastDay = (weeksOutVal - startAfterWeeks) % (settings.timeOffWeeksPerDay || 1);
+         const daysToNext = Math.ceil((1 - weeksSinceLastDay) * 7);
+         timeOffCard.description = `You have ${availableDays} earned days off. You earn another after ${daysToNext} more active day${daysToNext !== 1 ? 's' : ''}.`;
     } else {
-        if (daysTaken === 0 && availableDays > 0) {
-            // New Scenario: 0 Days Used, with available days shown
-            const totalSlots = availableDays + 1; // +1 for the zero block
-            const blockWidth = (370 - (totalSlots - 1) * 4) / totalSlots;
-            let currentX = 320;
-
-            // Draw the "0" block
-            outlineHtml = `<rect x="${currentX - 2}" y="${statusBarY - 2}" width="${blockWidth + 4}" height="28" fill="none" stroke="#e2e8f0" stroke-width="1.5" />`;
-            dayBlocksHtml += `<g>
-                <rect x="${currentX}" y="${statusBarY}" width="${blockWidth}" height="24" fill="#475569" />
-                <text x="${currentX + blockWidth / 2}" y="${statusBarY + 12}" dominant-baseline="middle" text-anchor="middle" font-size="11" font-weight="600" fill="#e2e8f0">0</text>
-            </g>`;
-            currentX += blockWidth + 4;
-
-            // Draw the available day blocks
-            for (let i = 0; i < availableDays; i++) {
-                const color = greenShades[Math.min(i, greenShades.length - 1)];
-                dayBlocksHtml += `<g>
-                    <rect x="${currentX}" y="${statusBarY}" width="${blockWidth}" height="24" fill="${color}" />
-                    <text x="${currentX + blockWidth / 2}" y="${statusBarY + 12}" dominant-baseline="middle" text-anchor="middle" font-size="11" font-weight="600" fill="#e2e8f0">${i + 1}</text>
-                </g>`;
-                currentX += blockWidth + 4;
-            }
+        if (settings.weeksOutMethod === 'dailyAccrual') {
+             const daysNeeded = Math.ceil((startAfterWeeks - weeksOutVal) * 7);
+             const weeksNeeded = Math.floor(daysNeeded / 7);
+             const remainingDaysNeeded = daysNeeded % 7;
+             let neededText = `${weeksNeeded} week${weeksNeeded !== 1 ? 's' : ''}`;
+             if(remainingDaysNeeded > 0) {
+                neededText += ` and ${remainingDaysNeeded} day${remainingDaysNeeded !== 1 ? 's' : ''}`;
+             }
+             timeOffCard.description = `You need ${neededText} more to start earning time off.`;
         } else {
-            const totalDaySlots = availableDays + excessDays;
-            const blockWidth = totalDaySlots > 0 ? (370 - (totalDaySlots - 1) * 4) / totalDaySlots : 370;
-            let currentX = 320;
-
-            for (let i = 0; i < totalDaySlots; i++) {
-                let color = (i < availableDays) 
-                    ? greenShades[Math.min(i, greenShades.length - 1)] 
-                    : redShades[Math.min(i - availableDays, redShades.length - 1)];
-                
-                dayBlocksHtml += `<g>
-                    <rect x="${currentX}" y="${statusBarY}" width="${blockWidth}" height="24" fill="${color}" />
-                    <text x="${currentX + blockWidth / 2}" y="${statusBarY + 12}" dominant-baseline="middle" text-anchor="middle" font-size="11" font-weight="600" fill="#e2e8f0">${i + 1}</text>
-                </g>`;
-                currentX += blockWidth + 4;
-            }
-            if (daysTaken > 0) {
-                const outlineWidth = (daysTaken * blockWidth) + ((daysTaken - 1) * 4);
-                outlineHtml = `<rect x="318" y="${statusBarY - 2}" width="${outlineWidth + 4}" height="28" fill="none" stroke="#e2e8f0" stroke-width="1.5" />`;
-            }
-        }
-
-        if (excessDays > 0) {
-            timeOffCard.description = `You used ${excessDays} excess day(s) over your ${availableDays} earned days off. Your escrow has been deducted.`;
-        } else if (daysTaken > 0) {
-            timeOffCard.description = `You have used ${daysTaken} of your ${availableDays} earned days off. You have ${remainingDays} day(s) remaining.`;
-        } else {
-            const weeksForNextDay = (settings.timeOffWeeksPerDay || 1) - ((driverData.weeksOut - startAfterWeeks) % (settings.timeOffWeeksPerDay || 1));
-            timeOffCard.description = `You have ${availableDays} earned days off. Stay out for ${weeksForNextDay} more week(s) to earn another.`;
+             timeOffCard.description = `You need ${Math.ceil(startAfterWeeks - weeksOutVal)} more week(s) out to start earning days off.`;
         }
     }
-    timeOffCard.statusBarHtml = dayBlocksHtml + outlineHtml;
+}
+
+   // --- Generate Status Bar SVG ---
+   const timeOffCardYBase = 200 + performanceCards.length * 90;
+   const statusBarY = timeOffCardYBase - 12;
+   let dayBlocksHtml = '';
+   let outlineHtml = '';
+   const greenShades = ['#375D4A', '#44715A', '#52856A', '#619A7B', '#70AC8D'];
+   const redShades = ['#A35B5B', '#914E4E', '#7D4141', '#6A3434', '#582A2A'];
+
+   const totalSlots = Math.max(availableDays, daysTaken);
+   if (totalSlots > 0) {
+       const blockWidth = (370 - (totalSlots - 1) * 4) / totalSlots;
+       let currentX = 320;
+       
+       for (let i = 0; i < totalSlots; i++) {
+           let color;
+           if (i < (availableDays - excessDays)) {
+               color = greenShades[Math.min(i, greenShades.length - 1)]; // Earned days
+           } else {
+               color = redShades[Math.min(i - (availableDays - excessDays), redShades.length - 1)]; // Excess days
+           }
+           
+           dayBlocksHtml += `<g>
+               <rect x="${currentX}" y="${statusBarY}" width="${blockWidth}" height="24" fill="${color}" />
+               <text x="${currentX + blockWidth / 2}" y="${statusBarY + 12}" dominant-baseline="middle" text-anchor="middle" font-size="11" font-weight="600" fill="#e2e8f0">${i + 1}</text>
+           </g>`;
+           currentX += blockWidth + 4;
+       }
+
+       if (daysTaken > 0) {
+           const outlineWidth = (daysTaken * blockWidth) + ((daysTaken - 1) * 4);
+           outlineHtml = `<rect x="318" y="${statusBarY - 2}" width="${outlineWidth + 4}" height="28" fill="none" stroke="#e2e8f0" stroke-width="1.5" />`;
+       }
+   } else { // Case for 0 available and 0 taken
+       dayBlocksHtml = `<g>
+               <rect x="320" y="${statusBarY}" width="370" height="24" fill="#334155" />
+               <text x="${320 + 370 / 2}" y="${statusBarY + 12}" dominant-baseline="middle" text-anchor="middle" font-size="11" font-weight="600" fill="#cbd5e1">0 Days Available</text>
+           </g>`;
+   }
+
+   timeOffCard.statusBarHtml = dayBlocksHtml + outlineHtml;
+
+   const timeOffCardY = timeOffCardYBase - 20;
+   const descriptionY = timeOffCardY + 40 + 15;
 
     const captureContainer = document.createElement('div');
     captureContainer.style.position = 'absolute';
@@ -900,6 +921,7 @@ export function openEditPanel(driverId, state) {
     const orderedKeys = [
         'tenure',
         'safetyScore',
+        'stubMiles', // ADDED: stubMiles to the ordered keys array
         'speedingAlerts',
         'speedingPercentile',
         distanceKey,
@@ -910,8 +932,17 @@ export function openEditPanel(driverId, state) {
 
     const createFieldHTML = (key, val) => {
         const config = columnConfig[key] || { title: 'Distance', type: 'number' };
-        const inputType = (config.type === 'number' || config.type === 'percent') ? 'number' : 'text';
-        return `<div><label class="block text-sm font-medium text-slate-400 mb-1">${config.title}</label><input type="${inputType}" id="edit-${key}" class="edit-input" value="${val}"></div>`;
+        // FIX: The title for stubMiles and safetyScore are manually set here to provide better context.
+        const titleMap = {
+            'stubMiles': 'Stub Miles',
+            'safetyScore': 'Safety Score (%)',
+            'speedingAlerts': 'Speeding Alerts',
+            'mpg': 'MPG',
+            'mpgPercentile': 'MPG Percentile (%)'
+        };
+        const title = titleMap[key] || config.title;
+        const inputType = (config.type === 'number' || config.type === 'percent' || key === 'stubMiles') ? 'number' : 'text';
+        return `<div><label class="block text-sm font-medium text-slate-400 mb-1">${title}</label><input type="${inputType}" id="edit-${key}" class="edit-input" value="${val}"></div>`;
     };
 
     let formFieldsHtml = orderedKeys.map(key => {
@@ -919,6 +950,10 @@ export function openEditPanel(driverId, state) {
         if (key === 'mpg') value = originalMpg;
         if (key === 'mpgPercentile') value = originalMpgPercentile;
         if (key === distanceKey) value = distanceValue;
+        if (key === 'weeksOut' && settings.weeksOutMethod === 'dailyAccrual') {
+            const numericValue = parseFloat(value);
+            value = isNaN(numericValue) ? '0.0' : numericValue.toFixed(1);
+        }
         return createFieldHTML(key, value);
     }).join('');
 
@@ -1098,25 +1133,17 @@ export function openActivityHistoryModal(driver, mileageData, settings, daysTake
                                 let colorClass = 'activity-red';
                                 const statuses = (activity.statuses || '').toUpperCase();
 
-                                switch (settings.weeksOutMethod) {
-                                    case 'daysOff':
-                                        if (statuses.includes('DAY_OFF')) {
-                                            colorClass = 'activity-red';
-                                        } else if (statuses.includes('WITHOUT_LOAD')) {
-                                            colorClass = 'activity-orange';
-                                        } else if (statuses.includes('ACTIVE')) {
-                                            colorClass = 'activity-green';
-                                        } else {
-                                             colorClass = activity.mileage > 0 ? 'activity-green' : 'activity-red';
-                                        }
-                                        break;
-                                    case 'daily':
-                                        colorClass = activity.mileage >= (settings.weeksOutMileageThreshold || 0) ? 'activity-green' : 'activity-red';
-                                        break;
-                                    case 'weekly':
-                                    default:
-                                        colorClass = activity.mileage > 0 ? 'activity-green' : 'activity-red';
-                                        break;
+                                // This logic is now identical to the main table for consistent coloring.
+                                if (statuses.includes('DAY_OFF')) {
+                                    colorClass = 'activity-red';
+                                } else if (statuses.includes('WITHOUT_LOAD')) {
+                                    colorClass = 'activity-orange';
+                                } else if (statuses.includes('ACTIVE')) {
+                                    colorClass = 'activity-green';
+                                } else if (statuses.includes('NO DATA') || statuses.includes('NOT_STARTED') || statuses.includes('CONTRACT_ENDED')) {
+                                    colorClass = 'activity-grey';
+                                } else {
+                                    colorClass = activity.mileage > 0 ? 'activity-green' : 'activity-red';
                                 }
 
                                 const miles = activity.mileage.toFixed(0);
@@ -1308,64 +1335,77 @@ export function updateLoadingProgress(width, hide = false) {
  */
 function renderSafetyTable(data) {
     const container = document.getElementById('safety-content');
+    const tableBody = document.getElementById('safety-table-body');
+
     if (!data || data.length === 0) {
+        // If there's no data, clear the container and show a message
         container.innerHTML = `<p class="text-slate-500 text-center py-10">No safety history found for this driver.</p>`;
+        // Destroy any lingering chart if the data disappears
+        if (safetyChart) {
+            safetyChart.destroy();
+            safetyChart = null;
+        }
         return;
     }
 
-    const tableHtml = `
-        <div class="history-table-wrapper">
-            <table class="history-table">
-                <thead>
-                    <tr>
-                        <th>Week</th>
-                        <th>Safety Score</th>
-                        <th>Samsara Distance</th>
-                        <th>Light Speeding</th>
-                        <th>Moderate Speeding</th>
-                        <th>Heavy Speeding</th>
-                        <th>Severe Speeding</th>
-                        <th>Max Speed</th>
-                        <th>Harsh Brake</th>
-                        <th>Harsh Turn</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${data.map(row => {
-                        // Create a new Date object from the timestamp string
-                        const date = new Date(row.date);
-                        // Format the date to MM/DD/YYYY
-                        const formattedDate = date.toLocaleDateString('en-US', {
-                            month: '2-digit',
-                            day: '2-digit',
-                            year: 'numeric',
-                            timeZone: 'UTC' // Use UTC to avoid timezone shifts
-                        });
-                        const distance = Math.round(parseFloat(row.totalDistance) || 0);
-                        const maxSpeed = Math.round(parseFloat(row.maxSpeed) || 0);
-                        return `
-                            <tr>
-                                <td>${formattedDate}</td>
-                                <td>${row.safetyScore}%</td>
-                                <td>${distance} mi</td>
-                                <td>${row.lightSpeeding}</td>
-                                <td>${row.moderateSpeeding}</td>
-                                <td>${row.heavySpeeding}</td>
-                                <td>${row.severeSpeeding}</td>
-                                <td>${maxSpeed} mph</td>
-                                <td>${row.harshBrake}</td>
-                                <td>${row.harshTurn}</td>
-                            </tr>
-                        `;
-                    }).join('')}
-                </tbody>
-            </table>
-        </div>
-        <div class="chart-container">
-            <canvas id="safety-history-chart"></canvas>
-        </div>`;
-    container.innerHTML = tableHtml;
-    renderSafetyChart(data);
+    // If the "no data" message was shown before, we need to restore the structure
+    if (!tableBody) {
+         container.innerHTML = `
+            <div class="history-table-wrapper">
+                <table class="history-table">
+                    <thead>
+                        <tr>
+                            <th>Week</th>
+                            <th>Safety Score</th>
+                            <th>Samsara Distance</th>
+                            <th>Light Speeding</th>
+                            <th>Moderate Speeding</th>
+                            <th>Heavy Speeding</th>
+                            <th>Severe Speeding</th>
+                            <th>Max Speed</th>
+                            <th>Harsh Brake</th>
+                            <th>Harsh Turn</th>
+                        </tr>
+                    </thead>
+                    <tbody id="safety-table-body"></tbody>
+                </table>
+            </div>
+            <div class="chart-container">
+                <canvas id="safety-history-chart"></canvas>
+            </div>`;
+    }
+    
+    // Re-select the table body in case it was just recreated
+    const tableBodyToUpdate = document.getElementById('safety-table-body');
+
+    // Sort the data by date in ascending order (A to Z) before rendering
+    const sortedData = data.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+    tableBodyToUpdate.innerHTML = sortedData.map(row => {
+        const date = new Date(row.date);
+        const formattedDate = date.toLocaleDateString('en-US', {
+            month: '2-digit',
+            day: '2-digit',
+            year: 'numeric',
+            timeZone: 'UTC' // Use UTC to avoid timezone shifts
+        });
+        const distance = Math.round(parseFloat(row.totalDistance) || 0);
+        const maxSpeed = Math.round(parseFloat(row.maxSpeed) || 0);
+        return `
+            <tr>
+                <td>${formattedDate}</td>
+                <td>${row.safetyScore}%</td>
+                <td>${distance} mi</td>
+                <td>${row.lightSpeeding}</td>
+                <td>${row.moderateSpeeding}</td>
+                <td>${row.heavySpeeding}</td>
+                <td>${row.severeSpeeding}</td>
+                <td>${maxSpeed} mph</td>
+                <td>${row.harshBrake}</td>
+                <td>${row.harshTurn}</td>
+            </tr>
+        `;
+    }).join('');
 }
 
 
@@ -1871,7 +1911,7 @@ function mergeFuelData(mpgData, fuelPurchaseData) {
 
         if (targetRecord) {
             const primaryFuelMovement = parseFloat(targetRecord.fuel_movement);
-            if (primaryFuelMovement < 0) {
+            if (primaryFuelMovement <= 0) {
                 for (let i = 1; i <= 3; i++) {
                     const nextHourTimestamp = new Date(targetHourTimestamp);
                     nextHourTimestamp.setUTCHours(nextHourTimestamp.getUTCHours() + i);
@@ -1966,8 +2006,9 @@ export async function openHistoryModal(driver, safetyFetcher, fuelFetcher, poFet
 
     renderChangelogTable(changelogData, mileageData, driver.name);
     renderSafetyTable(safetyData);
+    renderSafetyChart(safetyData); // Add this line
     renderPOTable(poData);
-    renderFuelTable(fullHistoryData, unmatchedPurchases, groupToggle.checked); 
+    renderFuelTable(fullHistoryData, unmatchedPurchases, groupToggle.checked);
 
     const rerenderFuelView = () => {
         filterAndRenderHistory(daysFilter.value, unmatchedPurchases);
