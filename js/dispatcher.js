@@ -85,6 +85,14 @@ function processAllData(driverList, mileageData, samsaraData, changelogData) {
             day.systemStatus = (day.systemStatus === 'NO DATA' ? '' : day.systemStatus + ', ') + item.activity_status.replace(/_/g, ' ');
         }
     });
+    // Add a grey color for NO DATA status
+    Object.values(drivers).forEach(driver => {
+        Object.values(driver.activity).forEach(day => {
+            if (day.systemStatus === 'NO DATA') {
+                day.colorClass = 'activity-grey';
+            }
+        });
+    });
     return drivers;
 }
 
@@ -140,7 +148,7 @@ function renderActivityView() {
         return !!savedOverrides[`${driver.name}_${day.toISOString().split('T')[0]}`];
     });
 
-    const statusOptions = ['CORRECT', 'DAY_OFF', 'ACTIVE', 'WITHOUT_LOAD'];
+    const statusOptions = ['CORRECT', 'DAY_OFF', 'ACTIVE', 'WITHOUT_LOAD', 'NOT_STARTED', 'CONTRACT_ENDED'];
     let weekHtml = `
         <div>
             <h2 class="text-xl font-semibold text-white mb-4">Confirm Activity for ${selectedDriverName}</h2>
