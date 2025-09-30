@@ -42,7 +42,11 @@ export const DISTANCE_OVERRIDE_URL = "https://script.google.com/macros/s/AKfycby
 export const UNIFIED_HISTORY_URL = "https://script.google.com/macros/s/AKfycbz_zZgWGn6mdydu87AhSEdM7-_DoPWJ4vHgTsMY1qCETQmwbJcKjeMxwxuFPosb4TzS/exec";
 
 // Loads the dispatcher-confirmed activity status overrides.
-export const DISPATCHER_OVERRIDES_URL = "https://script.google.com/macros/s/AKfycbx7Jjy0TVuU6Hmm9VlYRY83cjptK7U6i42lv2Uhc9SdbSTzEpHcsAKT_L8XV2BzGs4F8A/exec";
+export const DISPATCHER_OVERRIDES_URL = "https://script.google.com/macros/s/AKfycbx4rirjFWcMPE4Hkmjx4SY1SxwDWTJW5g6s6awNNE1oNAD3Zn1ptDcwJrr_HjhI78D4BQ/exec";
+
+// Fetches weekly gross, miles, and RPM from the fake.calculator sheet.
+export const FINANCIAL_DATA_URL = "https://script.google.com/macros/s/AKfycbz-8rLXMJF7J9M6TUFp86E0n0_vKRjyfKw01DrFIzoOhCTsyjbmXjbkzscvcIjsHfoW_Q/exec";
+
 
 
 export const columnConfig = {
@@ -69,8 +73,9 @@ export const columnConfig = {
     mpgPercentile: { title: 'MPG %', type: 'percent', class: 'text-center' },
     tenure: { title: 'Tenure (Wks)', type: 'number', class: 'text-center' },
     gross: { title: 'Gross', type: 'number', class: 'text-center' },
+    stubMiles: { title: 'Stub Miles', type: 'number', class: 'text-center' },
     rpm: { title: 'RPM', type: 'number', class: 'text-center' },
-    estimatedNet: { title: 'Estimated Net', type: 'number', class: 'text-center' },
+    estimatedNet: { title: 'Gross %', type: 'number', class: 'text-center' },
     totalTpog: { title: 'Final %', type: 'calc', class: 'text-center whitespace-nowrap' },
     bonuses: { title: 'Bonuses', type: 'calc', class: 'text-center font-semibold' },
     penalties: { title: 'Penalties', type: 'calc', class: 'text-center font-semibold' },
