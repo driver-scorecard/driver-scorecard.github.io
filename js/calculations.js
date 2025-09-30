@@ -1,3 +1,5 @@
+// TPOG/js/calculations.js
+
 /**
  * calculations.js
  * * Contains all the core business logic for calculating bonuses, penalties,
@@ -40,7 +42,7 @@ export function getDriverReportData(driver, settings) {
     // Safety Score Bonus
     let safetyBonus = 0;
     const scoreMet = driver.safetyScore >= settings.safetyScoreThreshold;
-    const milesMet = driver.milesWeek >= settings.safetyScoreMileageThreshold;
+    const milesMet = driver.stubMiles >= settings.safetyScoreMileageThreshold;
     const hasSpeedingAlerts = driver.speedingAlerts > 0;
     if (settings.safetyBonusForfeitedOnSpeeding && hasSpeedingAlerts && scoreMet && milesMet) {
         safetyBonus = 0;
@@ -104,38 +106,47 @@ export function getDriverReportData(driver, settings) {
     // Separate Bonuses and Penalties
     report.totalPositiveBonuses = Object.values(report.bonuses).reduce((sum, { bonus }) => sum + Math.max(0, bonus), 0);
     report.totalPenalties = Object.values(report.bonuses).reduce((sum, { bonus }) => sum + Math.min(0, bonus), 0);
-
-    // **NEW: Running Balance for Off Days and Escrow**
-    const weeksOut = driver.weeksOut || 0;
-    const baseDays = (settings && typeof settings.timeOffBaseDays === 'number') ? settings.timeOffBaseDays : 3;
-    const startAfterWeeks = (settings && typeof settings.timeOffStartAfterWeeks === 'number') ? settings.timeOffStartAfterWeeks : 3;
-    const weeksPerDay = (settings && typeof settings.timeOffWeeksPerDay === 'number' && settings.timeOffWeeksPerDay > 0) ? settings.timeOffWeeksPerDay : 1;
     
-    let totalEarnedDays = 0;
-    if (weeksOut >= startAfterWeeks) {
-        const weeksSinceQualified = weeksOut - startAfterWeeks;
-        const additionalDays = Math.floor(weeksSinceQualified / weeksPerDay);
-        totalEarnedDays = baseDays + additionalDays;
+    const grossPay = driver.gross || 0;
+    report.bonusesInDollars = (report.totalPositiveBonuses / 100) * grossPay;
+    report.penaltiesInDollars = (report.totalPenalties / 100) * grossPay;
+
+
+
+ const daysTakenThisWeek = driver.offDays || 0;
+    const balanceAtStartOfWeek = driver.balanceAtStartOfWeek || 0;
+    const streakAtStartOfWeek = driver.streakAtStartOfWeek || 0;
+    const currentStreak = driver.weeksOut || 0;
+
+    let newlyEarnedThisWeek = 0;
+    const startThreshold = settings.timeOffStartAfterWeeks || 3;
+    const weeksPerDay = settings.timeOffWeeksPerDay || 1;
+
+    // Check if the threshold was crossed during this week
+    if (currentStreak >= startThreshold && streakAtStartOfWeek < startThreshold) {
+        newlyEarnedThisWeek += settings.timeOffBaseDays;
+        // Also add any additional full weeks earned in the same period
+        const additionalFullWeeks = Math.floor(currentStreak) - startThreshold;
+        if (additionalFullWeeks > 0) {
+            newlyEarnedThisWeek += additionalFullWeeks / weeksPerDay;
+        }
+    } else if (currentStreak > streakAtStartOfWeek && currentStreak > startThreshold) {
+        // If we are already past the threshold, calculate earnings based on the increase in full weeks
+        const newFullWeeksEarned = Math.floor(currentStreak) - Math.floor(streakAtStartOfWeek);
+        if (newFullWeeksEarned > 0) {
+            newlyEarnedThisWeek = newFullWeeksEarned / weeksPerDay;
+        }
     }
 
-    const availableDaysBalance = totalEarnedDays - (driver.totalDaysTakenPreviously || 0);
-    report.availableOffDays = availableDaysBalance;
+    const currentAvailable = balanceAtStartOfWeek + newlyEarnedThisWeek;
+    report.availableOffDays = Math.max(0, currentAvailable);
 
-    const daysTakenThisWeek = driver.offDays || 0; 
-    let excessDays = 0;
-
-    // If the driver has a positive or zero balance of days off, excess days are any taken this week beyond that balance.
-    // If the balance is already negative, any day taken this week is considered an excess day.
-    if (availableDaysBalance >= 0) {
-        excessDays = Math.max(0, daysTakenThisWeek - availableDaysBalance);
-    } else {
-        excessDays = daysTakenThisWeek;
-    }
-    
+    const excessDays = Math.max(0, daysTakenThisWeek - Math.max(0, balanceAtStartOfWeek));
     report.escrowDeduct = excessDays * (settings.escrowDeductionAmount || 0);
     
     // Final TPOG
     report.totalTpog = settings.baseRate + report.totalBonus;
+    report.estimatedNet = (report.totalTpog / 100) * (driver.gross || 0);
     return report;
 }
 
@@ -163,13 +174,8 @@ export function updateSettingsFromUI() {
         newSettings.baseRate = parseFloat(document.getElementById('baseRate').value) || 0;
         
         // Weeks Out Policy
-        const checkedWeeksOutMethod = document.querySelector('input[name="weeksOutMethod"]:checked');
-        if (checkedWeeksOutMethod) {
-            newSettings.weeksOutMethod = checkedWeeksOutMethod.value;
-        }
-        newSettings.weeksOutMileageThreshold = parseFloat(document.getElementById('weeksOutMileageThreshold').value) || 0;
-        newSettings.weeksOutActiveDays = parseInt(document.getElementById('weeksOutActiveDays').value, 10) || 0;
-        newSettings.weeksOutWeeklyMileage = parseFloat(document.getElementById('weeksOutWeeklyMileage').value) || 0;
+        const weeksOutMethodChecked = document.querySelector('input[name="weeksOutMethod"]:checked');
+        newSettings.weeksOutMethod = weeksOutMethodChecked ? weeksOutMethodChecked.value : 'fullWeeksOnly';
         newSettings.weeksOutResetOnDaysOff = document.getElementById('weeksOutResetOnDaysOff').checked;
 
         newSettings.safetyScoreThreshold = parseFloat(document.getElementById('safetyScoreThreshold').value) || 0;
@@ -246,275 +252,292 @@ export function updateSettingsFromUI() {
  * @param {Object} settings The application settings.
  * @returns {Array<Object>} The processed driver data with calculated fields.
  */
-export function processDriverDataForDate(driversForDate, mileageData, settings, allSafetyData, overriddenDistances, daysTakenHistory, dispatcherOverrides) {
+export function processDriverDataForDate(driversForDate, mileageData, settings, allSafetyData, overriddenDistances, daysTakenHistory, dispatcherOverrides, allDrivers) {
     if (driversForDate.length > 0) {
         const formatDate = (date) => date.toISOString().split('T')[0];
         const selectedDateStr = driversForDate[0].pay_date.split('T')[0];
         const selectedDate = new Date(selectedDateStr + 'T12:00:00Z');
 
-        // New "Days Taken" Logic from Changelog
-        driversForDate.forEach(driver => {
-            // Define the performance date based on pay_delayWks
-            const performanceDate = new Date(selectedDateStr + 'T12:00:00Z');
-            if (driver.pay_delayWks === 2) {
-                performanceDate.setUTCDate(performanceDate.getUTCDate() - 7);
-            }
-            
-            const dayOfWeek = performanceDate.getUTCDay();
-            const daysToSubtract = (dayOfWeek + 6) % 7;
-            const monday = new Date(performanceDate);
-            monday.setUTCDate(performanceDate.getUTCDate() - daysToSubtract);
-            monday.setUTCHours(23, 59, 59, 999); // End of Monday
+        // TPOG/js/calculations.js
 
-            const tuesday = new Date(monday);
-            tuesday.setUTCDate(monday.getUTCDate() - 6);
-            tuesday.setUTCHours(0, 0, 0, 0); // Start of Tuesday
+       driversForDate.forEach(driver => {
+        const performanceDate = new Date(selectedDateStr + 'T12:00:00Z');
+        if (driver.pay_delayWks === 2) {
+            performanceDate.setUTCDate(performanceDate.getUTCDate() - 7);
+        }
 
-            // Get all "DAY_OFF" records for the driver, considering overrides
-            const driverDaysOffHistory = [];
-            const allPossibleDates = [...new Set([
-                ...daysTakenHistory.map(h => formatDate(new Date(h.date))),
-                ...Object.keys(dispatcherOverrides).filter(k => k.startsWith(driver.name)).map(k => k.split('_')[1])
-            ])];
+        const dayOfWeek = performanceDate.getUTCDay();
+        const daysToSubtract = (dayOfWeek + 6) % 7;
+        const monday = new Date(performanceDate);
+        monday.setUTCDate(performanceDate.getUTCDate() - daysToSubtract);
+        monday.setUTCHours(23, 59, 59, 999);
 
-            allPossibleDates.forEach(dateStr => {
-                const overrideKey = `${driver.name}_${dateStr}`;
-                const overrideStatus = dispatcherOverrides[overrideKey];
+        const tuesday = new Date(monday);
+        tuesday.setUTCDate(monday.getUTCDate() - 6);
+        tuesday.setUTCHours(0, 0, 0, 0);
 
-                if (overrideStatus === 'DAY_OFF') {
-                    driverDaysOffHistory.push({ driver_name: driver.name, date: dateStr, activity_status: 'DAY_OFF' });
-                } else if (!overrideStatus) {
-                    // Only use system data if no override exists
-                    const systemDayOff = daysTakenHistory.find(h => 
-                        h.driver_name === driver.name &&
-                        formatDate(new Date(h.date)) === dateStr &&
-                        h.activity_status === 'DAY_OFF'
-                    );
-                    if (systemDayOff) {
-                        driverDaysOffHistory.push(systemDayOff);
-                    }
+        const driverMileageRecords = mileageData.filter(m => m.driver_name === driver.name);
+        const allDaysOffHistory = [];
+
+        const allPossibleDates = [...new Set([
+            ...daysTakenHistory.map(h => formatDate(new Date(h.date))),
+            ...Object.keys(dispatcherOverrides).filter(k => k.startsWith(driver.name)).map(k => k.split('_')[1])
+        ])];
+
+        allPossibleDates.forEach(dateStr => {
+            const overrideKey = `${driver.name}_${dateStr}`;
+            const overrideStatus = dispatcherOverrides[overrideKey];
+            let isDayOff = false;
+
+            if (overrideStatus === 'DAY_OFF') {
+                isDayOff = true;
+            } else if (overrideStatus === 'NOT_STARTED') {
+                isDayOff = false; // Explicitly not a day off
+            } else if (overrideStatus !== 'CORRECT' && overrideStatus !== undefined) {
+                isDayOff = false;
+            } else {
+                const systemDayOff = daysTakenHistory.some(h =>
+                    h.driver_name === driver.name &&
+                    formatDate(new Date(h.date)) === dateStr &&
+                    h.activity_status === 'DAY_OFF'
+                );
+                if (systemDayOff) {
+                    isDayOff = true;
                 }
-            });
+            }
 
-            // Count days taken THIS week and assign to driver.offDays
-            const daysTakenThisWeek = driverDaysOffHistory.filter(h => {
-                const recordDate = new Date(h.date);
-                return recordDate >= tuesday && recordDate <= monday;
-            }).length;
-            driver.offDays = daysTakenThisWeek;
-
-            // Count days taken PREVIOUSLY (before the start of the current week)
-            const totalDaysTakenPreviously = driverDaysOffHistory.filter(h => {
-                const recordDate = new Date(h.date);
-                return recordDate < tuesday;
-            }).length;
-            driver.totalDaysTakenPreviously = totalDaysTakenPreviously;
+            if (isDayOff) {
+                allDaysOffHistory.push({ driver_name: driver.name, date: dateStr, activity_status: 'DAY_OFF' });
+            }
         });
         
-        // Weeks Out Calculation Logic
-        if (mileageData.length > 0 || settings.weeksOutMethod === 'daysOff') {
-            const formatDate = (date) => date.toISOString().split('T')[0];
+        const uniqueDaysOff = [...new Map(allDaysOffHistory.map(item => [item['date'], item])).values()];
 
-            driversForDate.forEach(driver => {
-                const driverMileageRecords = mileageData.filter(m => m.driver_name === driver.name);
-                const driverDaysTakenRecords = daysTakenHistory.filter(h => h.driver_name === driver.name);
+        let daysTakenThisWeek = 0;
+        let daysTakenPreviously = 0;
 
-                // --- START: DYNAMIC LOOP LIMIT ---
-                const performanceDateForLimit = new Date(selectedDateStr + 'T12:00:00Z');
-                 if (driver.pay_delayWks === 2) {
-                    performanceDateForLimit.setUTCDate(performanceDateForLimit.getUTCDate() - 7);
-                }
+        daysTakenThisWeek = uniqueDaysOff.filter(h => {
+            const recordDate = new Date(h.date + 'T12:00:00Z');
+            return recordDate >= tuesday && recordDate <= monday;
+        }).length;
+        daysTakenPreviously = uniqueDaysOff.filter(h => {
+            const recordDate = new Date(h.date + 'T12:00:00Z');
+            return recordDate < tuesday;
+        }).length;
+        
+        driver.offDays = daysTakenThisWeek;
+        driver.totalDaysTakenPreviously = daysTakenPreviously;
+        driver.fullDaysOffHistory = uniqueDaysOff;
+    });
+        
+    if (mileageData.length > 0 || settings.weeksOutMethod === 'daysOff' || settings.weeksOutMethod === 'dailyAccrual' || settings.weeksOutMethod === 'fullWeeksOnly') {
+        const formatDate = (date) => date.toISOString().split('T')[0];
+        const selectedDateStr = driversForDate[0].pay_date.split('T')[0];
 
-                const firstMileageDate = driverMileageRecords.length > 0 
-                    ? new Date(Math.min(...driverMileageRecords.map(r => new Date(r.date)))) 
-                    : null;
-                const firstDayTakenDate = driverDaysTakenRecords.length > 0 
-                    ? new Date(Math.min(...driverDaysTakenRecords.map(r => new Date(r.date)))) 
-                    : null;
+        driversForDate.forEach(driver => {
+            const driverMileageRecords = mileageData.filter(m => m.driver_name === driver.name);
+            const allRecordsForDriver = allDrivers
+                .filter(d => d.name === driver.name && d.pay_date)
+                .sort((a, b) => new Date(a.pay_date) - new Date(b.pay_date));
 
-                let earliestRecordDate = null;
-                if (firstMileageDate && firstDayTakenDate) {
-                    earliestRecordDate = new Date(Math.min(firstMileageDate, firstDayTakenDate));
-                } else {
-                    earliestRecordDate = firstMileageDate || firstDayTakenDate;
-                }
-
-                let maxWeeksToScan = 52; // Default to 52
-                if (earliestRecordDate) {
-                    const timeDiff = performanceDateForLimit.getTime() - earliestRecordDate.getTime();
-                    // Calculate total weeks and add 1 to include the current week
-                    maxWeeksToScan = Math.ceil(timeDiff / (1000 * 3600 * 24 * 7)) + 1;
-                }
-                // --- END: DYNAMIC LOOP LIMIT ---
-
-                let consecutiveWeeks = 0;
-
-                for (let i = 0; i < maxWeeksToScan; i++) {
-                    const weekEndDate = new Date(performanceDateForLimit);
-                    weekEndDate.setUTCDate(performanceDateForLimit.getUTCDate() - 3 - (i * 7));
-                    const weekStartDate = new Date(weekEndDate);
-                    weekStartDate.setUTCDate(weekEndDate.getUTCDate() - 6);
-
-                    // Stop if we've gone past the earliest known data for the driver
-                    if (earliestRecordDate && weekEndDate < earliestRecordDate) {
-                        break;
-                    }
-
-                    // Check for the "reset on days off" rule first
-                    if (settings.weeksOutResetOnDaysOff && (driver.offDays || 0) > 0) {
-                        break; // Stop counting immediately if this rule is active and days were taken
-                    }
-
-                    let weekCountsAsOut = false;
-                    switch (settings.weeksOutMethod) {
-                        case 'weekly':
-                            const weeklyTotalMiles = driverMileageRecords
-                                .filter(m => m.date >= formatDate(weekStartDate) && m.date <= formatDate(weekEndDate))
-                                .reduce((total, record) => total + (record.movement || 0), 0);
+                let streak = 0;
+                let earnedDays = 0;
+                let takenDays = 0;
+                const payDatesProcessed = new Set();
+                const dailyContribution = 0.1429;
+    
+                if (settings.weeksOutMethod === 'dailyAccrual') {
+                    let continuousDayStreak = 0;
+    
+                    for (const record of allRecordsForDriver) {
+                        const recordPayDateStr = record.pay_date.split('T')[0];
+                        if (payDatesProcessed.has(recordPayDateStr)) continue;
+                        payDatesProcessed.add(recordPayDateStr);
+    
+                        const performanceDate = new Date(recordPayDateStr + 'T12:00:00Z');
+                        if (record.pay_delayWks === 2) performanceDate.setUTCDate(performanceDate.getUTCDate() - 7);
+                        
+                        const monday = new Date(performanceDate);
+                        monday.setUTCDate(monday.getUTCDate() - (monday.getUTCDay() + 6) % 7);
+                        const tuesday = new Date(monday);
+                        tuesday.setUTCDate(monday.getUTCDate() - 6);
+    
+                        const daysOffInWeek = driver.fullDaysOffHistory.filter(h => {
+                            const recordDate = new Date(h.date + 'T12:00:00Z');
+                            return recordDate >= tuesday && recordDate <= monday;
+                        }).length;
+    
+                        const oldStreakInWeeks = Math.floor(continuousDayStreak * dailyContribution);
+    
+                        for (let i = 0; i < 7; i++) {
+                            const currentDay = new Date(tuesday);
+                            currentDay.setUTCDate(tuesday.getUTCDate() + i);
+                            const isDayOff = driver.fullDaysOffHistory.some(h => new Date(h.date + 'T12:00:00Z').getTime() === currentDay.getTime());
                             
-                            if (weeklyTotalMiles >= settings.weeksOutWeeklyMileage) {
-                                weekCountsAsOut = true;
+                            const dayString = formatDate(currentDay);
+                            const overrideKey = `${driver.name}_${dayString}`;
+                            const overrideStatus = dispatcherOverrides[overrideKey];
+                            const isNotStarted = overrideStatus === 'NOT_STARTED';
+                            const isContractEnded = overrideStatus === 'CONTRACT_ENDED';
+    
+                            if ((settings.weeksOutResetOnDaysOff && isDayOff) || isNotStarted || isContractEnded) {
+                                continuousDayStreak = 0;
+                            } else if (!isDayOff) {
+                                continuousDayStreak++;
                             }
-                            break;
-                        case 'daysOff':
-                            const daysOffThisWeek = driverDaysTakenRecords.filter(h => {
-                                const recordDate = new Date(h.date);
-                                return h.activity_status === 'DAY_OFF' &&
-                                       recordDate >= weekStartDate &&
-                                       recordDate <= weekEndDate;
-                            }).length;
-                            
-                            if (daysOffThisWeek === 0) {
-                                weekCountsAsOut = true;
-                            }
-                            break;
-                        case 'daily': // Default case
-                        default:
-                            const minDailyMiles = settings.weeksOutMileageThreshold || 0;
-                            const minActiveDays = settings.weeksOutActiveDays || 0;
-                            const activeDaysThisWeek = driverMileageRecords.filter(m => {
-                                return m.date >= formatDate(weekStartDate) && m.date <= formatDate(weekEndDate) && m.movement >= minDailyMiles;
-                            }).length;
-
-                            if (activeDaysThisWeek >= minActiveDays) {
-                                weekCountsAsOut = true;
-                            }
-                            break;
-                    }
-
-                    if (weekCountsAsOut) {
-                        consecutiveWeeks++;
-                    } else {
-                        break; // Streak is broken
-                    }
-                }
-                driver.weeksOut = consecutiveWeeks;
-
-                const currentWeekEndDate = new Date(performanceDateForLimit);
-                currentWeekEndDate.setUTCDate(performanceDateForLimit.getUTCDate() - 3);
-                const currentWeekStartDate = new Date(currentWeekEndDate);
-                currentWeekStartDate.setUTCDate(currentWeekEndDate.getUTCDate() - 6);
-                const weeklyMiles = driverMileageRecords
-                    .filter(m => m.date >= formatDate(currentWeekStartDate) && m.date <= formatDate(currentWeekEndDate))
-                    .reduce((total, record) => total + (record.movement || 0), 0);
-                driver.milesWeek = Math.round(weeklyMiles);
-
-                if (allSafetyData && allSafetyData.length > 0) {
-                     const performanceDateStr = formatDate(performanceDateForLimit);
-                    const safetyRecord = allSafetyData.find(record => record.name === driver.name && record.date.split('T')[0] === performanceDateStr);
-                    if (safetyRecord && safetyRecord.totalDistance) {
-                        driver.samsaraDistance = Math.round(parseFloat(safetyRecord.totalDistance));
-                    }
-                }
-                
-                // --- START: Weekly Activity Calculation ---
-                const weeklyActivityData = [];
-                const payDate = new Date(selectedDateStr + 'T12:00:00Z');
-                if (driver.pay_delayWks === 2) {
-                    payDate.setUTCDate(payDate.getUTCDate() - 7);
-                }
-
-                const dayOfWeek = payDate.getUTCDay(); // Sunday = 0, Monday = 1, ...
-                const daysToSubtract = (dayOfWeek + 6) % 7; // Calculate days to go back to get to Monday
-                const monday = new Date(payDate);
-                monday.setUTCDate(payDate.getUTCDate() - daysToSubtract);
-
-                const tuesday = new Date(monday);
-                tuesday.setUTCDate(monday.getUTCDate() - 6);
-
-                const driverMileageMap = new Map(
-                    driverMileageRecords.map(m => [m.date, m.movement || 0])
-                );
-
-                const driverChangelog = daysTakenHistory.filter(h => h.driver_name === driver.name);
-                const dayLabels = ['Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday', 'Monday'];
-                const dayShortLabels = ['T', 'W', 'T', 'F', 'S', 'S', 'M'];
-
-                for (let i = 0; i < 7; i++) {
-                    const currentDay = new Date(tuesday);
-                    currentDay.setUTCDate(tuesday.getUTCDate() + i);
-                    const dayString = formatDate(currentDay);
-                    const mileage = driverMileageMap.get(dayString) || 0;
-
-                    const formattedDate = `${dayLabels[i]}, ${(currentDay.getUTCMonth() + 1).toString().padStart(2, '0')}.${currentDay.getUTCDate().toString().padStart(2, '0')}`;
-
-                    const overrideKey = `${driver.name}_${dayString}`;
-                    const overrideStatus = dispatcherOverrides[overrideKey];
-                    const isOverridden = !!overrideStatus;
-
-                    const statusesForDay = driverChangelog
-                        .filter(log => new Date(log.date).toLocaleDateString('en-US', { timeZone: 'America/Chicago' }) === currentDay.toLocaleDateString('en-US', { timeZone: 'America/Chicago' }))
-                        .map(log => log.activity_status);
-                    const uniqueStatuses = [...new Set(statusesForDay)];
-                    const systemStatusText = uniqueStatuses.length > 0 ? uniqueStatuses.join(', ') : 'No Status Change';
-
-                    let finalStatus = systemStatusText;
-                    let tooltipStatus = systemStatusText;
-                    let isChanged = false;
-
-                    if (isOverridden) {
-                        // A dispatcher has reviewed this day.
-                        if (overrideStatus !== 'CORRECT') {
-                            // The status was explicitly changed to something other than 'CORRECT'.
-                            // This is a true override.
-                            finalStatus = overrideStatus;
-                            tooltipStatus = `${overrideStatus} (Dispatch Override)`;
-                            isChanged = true;
                         }
-                        // If overrideStatus IS 'CORRECT', we do nothing.
-                        // The tooltip will correctly show the original system status with no extra text.
+                        
+                        const newStreakInWeeks = Math.floor(continuousDayStreak * dailyContribution);
+    
+                        if (recordPayDateStr === selectedDateStr) {
+                            driver.weeksOut = continuousDayStreak * dailyContribution;
+                            driver.offDays = daysOffInWeek;
+                            driver.balanceAtStartOfWeek = earnedDays - takenDays;
+                            driver.streakAtStartOfWeek = oldStreakInWeeks;
+                            break;
+                        }
+    
+                        takenDays += daysOffInWeek;
+    
+                        if (newStreakInWeeks > oldStreakInWeeks) {
+                            for (let i = oldStreakInWeeks + 1; i <= newStreakInWeeks; i++) {
+                                if (i === settings.timeOffStartAfterWeeks) {
+                                    earnedDays += settings.timeOffBaseDays;
+                                } else if (i > settings.timeOffStartAfterWeeks) {
+                                    earnedDays += (1 / (settings.timeOffWeeksPerDay || 1));
+                                }
+                            }
+                        }
                     }
+    
+                } else { // Handles 'fullWeeksOnly'
+                    for (const record of allRecordsForDriver) {
+                        const recordPayDateStr = record.pay_date.split('T')[0];
+                        if (payDatesProcessed.has(recordPayDateStr)) continue;
+                        payDatesProcessed.add(recordPayDateStr);
+                        
+                        const performanceDate = new Date(recordPayDateStr + 'T12:00:00Z');
+                        if (record.pay_delayWks === 2) performanceDate.setUTCDate(performanceDate.getUTCDate() - 7);
+                        
+                        const monday = new Date(performanceDate);
+                        monday.setUTCDate(monday.getUTCDate() - (monday.getUTCDay() + 6) % 7);
+                        const tuesday = new Date(monday);
+                        tuesday.setUTCDate(monday.getUTCDate() - 6);
+    
+                        const daysOffInWeek = driver.fullDaysOffHistory.filter(h => {
+                            const recordDate = new Date(h.date + 'T12:00:00Z');
+                            return recordDate >= tuesday && recordDate <= monday;
+                        }).length;
+                        
+                        let hasNotStartedInWeek = false;
+                        for (let i = 0; i < 7; i++) {
+                            const currentDay = new Date(tuesday);
+                            currentDay.setUTCDate(tuesday.getUTCDate() + i);
+                            const dayString = formatDate(currentDay);
+                            const overrideKey = `${driver.name}_${dayString}`;
+                            const overrideStatus = dispatcherOverrides[overrideKey];
+                            if (overrideStatus === 'NOT_STARTED' || overrideStatus === 'CONTRACT_ENDED') {
+                                hasNotStartedInWeek = true;
+                                break;
+                            }
+                        }
 
-                    weeklyActivityData.push({
-                        day: dayShortLabels[i],
-                        mileage: mileage,
-                        fullDate: formattedDate,
-                        statuses: finalStatus,
-                        tooltipStatus: tooltipStatus,
-                        isOverridden: isOverridden,
-                        isChanged: isChanged
-                    });
+                        let weekMetCriteria = daysOffInWeek === 0 && !hasNotStartedInWeek;
+                        if (settings.weeksOutResetOnDaysOff && !weekMetCriteria) {
+                            streak = 0;
+                        }
+    
+                        if (recordPayDateStr === selectedDateStr) {
+                            driver.weeksOut = weekMetCriteria ? streak + 1 : streak;
+                            driver.offDays = daysOffInWeek;
+                            driver.balanceAtStartOfWeek = earnedDays - takenDays;
+                            driver.streakAtStartOfWeek = streak;
+                            break;
+                        }
+    
+                        takenDays += daysOffInWeek;
+                        const oldStreak = streak;
+                        if (weekMetCriteria) {
+                            streak++;
+                        }
+                        
+                        if (streak > oldStreak) {
+                            if (streak === settings.timeOffStartAfterWeeks) {
+                                earnedDays += settings.timeOffBaseDays;
+                            } else if (streak > settings.timeOffStartAfterWeeks) {
+                                earnedDays += (1 / (settings.timeOffWeeksPerDay || 1));
+                            }
+                        }
+                    }
                 }
-                driver.weeklyActivity = weeklyActivityData;
-                // --- END: Weekly Activity Calculation ---
+            
+            const performanceDateForLimit = new Date(selectedDateStr + 'T12:00:00Z');
+            if (driver.pay_delayWks === 2) {
+               performanceDateForLimit.setUTCDate(performanceDateForLimit.getUTCDate() - 7);
+            }
+            const mondayOfCurrentWeek = new Date(performanceDateForLimit);
+            const dayOfWeek_current = mondayOfCurrentWeek.getUTCDay();
+            const daysToSubtract_current = (dayOfWeek_current + 6) % 7;
+            mondayOfCurrentWeek.setUTCDate(mondayOfCurrentWeek.getUTCDate() - daysToSubtract_current);
+            const tuesdayOfCurrentWeek = new Date(mondayOfCurrentWeek);
+            tuesdayOfCurrentWeek.setUTCDate(mondayOfCurrentWeek.getUTCDate() - 6);
 
-// WITH THIS
-// --- START: Dispatcher Confirmation Check ---
-let isFullyConfirmed = true;
-for (let i = 0; i < 7; i++) {
-    const currentDay = new Date(tuesday);
-    currentDay.setUTCDate(tuesday.getUTCDate() + i);
-    const dayString = formatDate(currentDay);
-    const overrideKey = `${driver.name}_${dayString}`;
-    if (!dispatcherOverrides[overrideKey]) {
-        isFullyConfirmed = false;
-        break;
+            driver.milesWeek = Math.round(driverMileageRecords
+                .filter(m => m.date >= formatDate(tuesdayOfCurrentWeek) && m.date <= formatDate(mondayOfCurrentWeek))
+                .reduce((total, record) => total + (record.movement || 0), 0));
+
+            if (allSafetyData && allSafetyData.length > 0) {
+                 const performanceDateStr = formatDate(performanceDateForLimit);
+                const safetyRecord = allSafetyData.find(record => record.name === driver.name && record.date.split('T')[0] === performanceDateStr);
+                if (safetyRecord && safetyRecord.totalDistance) {
+                    driver.samsaraDistance = Math.round(parseFloat(safetyRecord.totalDistance));
+                }
+            }
+
+            const weeklyActivityData = [];
+            const driverChangelog = daysTakenHistory.filter(h => h.driver_name === driver.name);
+            const dayLabels = ['Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday', 'Monday'];
+            const dayShortLabels = ['T', 'W', 'T', 'F', 'S', 'S', 'M'];
+
+            for (let i = 0; i < 7; i++) {
+                const currentDay = new Date(tuesdayOfCurrentWeek);
+                currentDay.setUTCDate(tuesdayOfCurrentWeek.getUTCDate() + i);
+                const dayString = formatDate(currentDay);
+                const mileage = new Map(driverMileageRecords.map(m => [m.date, m.movement || 0])).get(dayString) || 0;
+                const formattedDate = `${dayLabels[i]}, ${(currentDay.getUTCMonth() + 1).toString().padStart(2, '0')}.${currentDay.getUTCDate().toString().padStart(2, '0')}`;
+                const overrideKey = `${driver.name}_${dayString}`;
+                const overrideStatus = dispatcherOverrides[overrideKey];
+                const isOverridden = !!overrideStatus;
+                const statusesForDay = driverChangelog.filter(log => new Date(log.date).toLocaleDateString('en-US', { timeZone: 'America/Chicago' }) === currentDay.toLocaleDateString('en-US', { timeZone: 'America/Chicago' })).map(log => log.activity_status);
+                const uniqueStatuses = [...new Set(statusesForDay)];
+                const systemStatusText = uniqueStatuses.length > 0 ? uniqueStatuses.join(', ') : 'No Data';
+                let finalStatus = systemStatusText;
+                let tooltipStatus = systemStatusText;
+                let isChanged = false;
+                if (isOverridden) {
+                    if (overrideStatus !== 'CORRECT') {
+                        finalStatus = overrideStatus;
+                        tooltipStatus = `${overrideStatus} (Dispatch Override)`;
+                        isChanged = true;
+                    }
+                }
+                weeklyActivityData.push({ day: dayShortLabels[i], mileage: mileage, fullDate: formattedDate, statuses: finalStatus, tooltipStatus: tooltipStatus, isOverridden: isOverridden, isChanged: isChanged });
+            }
+            driver.weeklyActivity = weeklyActivityData;
+            let isFullyConfirmed = true;
+            for (let i = 0; i < 7; i++) {
+                const currentDay = new Date(tuesdayOfCurrentWeek);
+                currentDay.setUTCDate(tuesdayOfCurrentWeek.getUTCDate() + i);
+                const dayString = formatDate(currentDay);
+                const overrideKey = `${driver.name}_${dayString}`;
+                if (!dispatcherOverrides[overrideKey]) {
+                    isFullyConfirmed = false;
+                    break;
+                }
+            }
+            driver.isDispatcherReviewed = isFullyConfirmed;
+        });
     }
-}
-driver.isDispatcherReviewed = isFullyConfirmed;
-// --- END: Dispatcher Confirmation Check ---
-            });
-        }
 
         // Percentile Calculations
         driversForDate.forEach(driver => {
