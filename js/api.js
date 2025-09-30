@@ -17,7 +17,8 @@ import {
     DISTANCE_OVERRIDE_URL,
     UNIFIED_HISTORY_URL,
     CHANGELOG_URL,
-    DISPATCHER_OVERRIDES_URL
+    DISPATCHER_OVERRIDES_URL,
+    FINANCIAL_DATA_URL
 } from './config.js';
 
 // --- Caching & Normalization Solution ---
@@ -82,7 +83,7 @@ export async function fetchDriverData() {
         const formattedData = result.data.map(d => ({
             id: d.contract_id, name: d.driver_name, dispatcher: d.dispatch || '-', team: d.team || '-',
             franchise: d.franchise || '-', company: d.company || '-', contract_type: d.contract_type || '-',
-            weeksOut: 0, milesWeek: d.milesWeek || 0, tenure: d.tenure || 0, gross: d.gross || 0, rpm: d.rpm || 0,
+            weeksOut: 0, milesWeek: d.milesWeek || 0, tenure: d.tenure || 0, gross: d.gross || 0, stubMiles: 0, rpm: d.rpm || 0,
             estimatedNet: d.estimated_net || 0, safetyScore: d.safety_score || 0, speedingAlerts: d.speed_events || 0,
             speeding_over11mph: d.speeding_over11mph || 0, speeding_over16mph: d.speeding_over16mph || 0,
             mpg: parseFloat(d.gallons_fictive > 0 ? (d.distance / d.gallons_fictive) : 0).toFixed(1),
@@ -385,5 +386,22 @@ export async function loadDispatcherOverrides() {
     } catch (error) {
         console.error("Failed to fetch dispatcher overrides:", error);
         return {};
+    }
+}
+
+export async function loadFinancialData() {
+    const cacheKey = 'financialData';
+    const cachedData = getCachedData(cacheKey);
+    if (cachedData) return Promise.resolve(cachedData);
+
+    try {
+        const response = await fetch(FINANCIAL_DATA_URL);
+        if (!response.ok) throw new Error('Network response for financial data was not ok.');
+        const result = await response.json();
+        setCachedData(cacheKey, result.data);
+        return result.data;
+    } catch (error) {
+        console.error("Failed to fetch financial data:", error);
+        return [];
     }
 }
