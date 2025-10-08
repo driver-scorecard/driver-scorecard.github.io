@@ -621,11 +621,28 @@ export function downloadDriverReport(driverData, settings, driversForDate) {
     const canvas = document.createElement('canvas');
     const context = canvas.getContext('2d');
 
+    const getSpeedingBarTiers = (settings) => {
+        const method = settings.speedingPenaltyMethod || 'percentile';
+        switch (method) {
+            case 'range':
+                const rangeTiers = (settings.speedingRangeTiers || []).map(t => t.penalty);
+                return [...new Set([0, ...rangeTiers])].sort((a, b) => a - b);
+            case 'perEvent':
+                const penaltyPer = settings.speedingPerEventPenalty || 0;
+                if (penaltyPer === 0) return [0];
+                return [0, penaltyPer, penaltyPer * 2, penaltyPer * 3].sort((a, b) => a - b);
+            case 'percentile':
+            default:
+                const percentileTiers = (settings.speedingPercentileTiers || []).map(t => t.bonus);
+                return [...new Set([0, ...percentileTiers])].sort((a, b) => a - b);
+        }
+    };
+
     let performanceCards = [
         { title: 'Tenure', titleIcon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 002-2H5a2 2 0 00-2 2v12a2 2 0 002 2z', value: reportData.bonuses['Tenure'].bonus, barTiers: [0, ...settings.tenureMilestones.map((_, i) => settings.tenureMilestones.slice(0, i + 1).reduce((sum, m) => sum + m.bonus, 0))], type: 'tenure' },
         { title: 'Weeks Out', titleIcon: 'M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z', value: reportData.bonuses['Weeks Out'].bonus, barTiers: [...new Set(settings.weeksOutTiers.map(t => t.bonus))].sort((a, b) => a - b), type: 'weeksOut' },
         { title: 'Fuel Efficiency', titleIcon: 'M7 2h6a1 1 0 011 1v15a2 2 0 01-2 2H8a2 2 0 01-2-2V3a1 1 0 011-1zm10 4v12a2 2 0 002 2h1a1 1 0 001-1v-9a2 2 0 00-2-2h-2zM7 7h6', value: reportData.bonuses['Fuel Efficiency'].bonus, barTiers: [...new Set(settings.mpgPercentileTiers.map(t => t.bonus))].sort((a, b) => a - b), type: 'fuel' },
-        { title: 'Speeding', titleIcon: 'M13 10V3L4 14h7v7l9-11h-7z', value: reportData.bonuses['Speeding Penalty'].bonus, barTiers: [0, ...settings.speedingPercentileTiers.map(t => t.bonus)].sort((a, b) => a - b), type: 'speeding' },
+        { title: 'Speeding', titleIcon: 'M13 10V3L4 14h7v7l9-11h-7z', value: reportData.bonuses['Speeding Penalty'].bonus, barTiers: getSpeedingBarTiers(settings), type: 'speeding' },
         { title: 'Safety Score', titleIcon: 'M12 2L4 5v6c0 5.55 3.84 10.74 8 12 4.16-1.26 8-6.45 8-12V5l-8-3z', viewBox: '0 0 24 24', value: reportData.bonuses['Safety Score'].bonus, barTiers: [0, settings.safetyScoreBonus], type: 'safety' }
     ];
 
@@ -2286,3 +2303,4 @@ function renderPOChart(poData) {
         }
     });
 }
+
