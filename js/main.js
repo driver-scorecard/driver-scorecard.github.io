@@ -484,35 +484,78 @@ userProfilesTableBody.addEventListener('click', async (e) => {
         // --- Action Handlers ---
         const saveChanges = async () => {
             if (isNew) return; // Cannot save a new driver this way yet.
-            const masterDriverRecord = allDrivers.find(d => d.id == currentEditingDriverId && d.pay_date === driverForDate.pay_date);
-            if (!masterDriverRecord) return false;
+            
+            // Find the original driver object to get its data
+            const driverForDate = processedDriversForDate.find(d => d.id == currentEditingDriverId);
+            if (!driverForDate) return false;
+
+            // --- FIX STARTS HERE ---
+
+            // 1. Get the original CALCULATED report data for accurate comparison.
+            const originalReportData = calc.getDriverReportData(driverForDate, settings);
     
             const fieldsToUpdate = {};
             document.querySelectorAll('#edit-content .edit-input').forEach(input => {
                 const key = input.id.replace('edit-', '');
                 const newValue = input.value;
-                if (String(driverForDate[key]) !== String(newValue)) {
-                    fieldsToUpdate[key] = newValue;
+                let originalValue;
+
+                // 2. Find the correct original value to compare against.
+                if (key === 'mpg') {
+                    // Compare against the same formatted string.
+                    originalValue = parseFloat(driverForDate.mpg).toFixed(2);
+                } else if (key === 'availableOffDays') {
+                    // Compare against the original calculated value.
+                    originalValue = originalReportData.availableOffDays;
+                } else if (key === 'escrowDeduct') {
+                    // Compare against the original calculated value.
+                    originalValue = originalReportData.escrowDeduct;
+                } else if (key === 'weeksOut' && settings.weeksOutMethod === 'dailyAccrual') {
+                    // Compare against the same formatted string for daily accrual.
+                    const numericValue = parseFloat(driverForDate.weeksOut);
+                    originalValue = isNaN(numericValue) ? '0.0' : numericValue.toFixed(1);
+                }
+                else {
+                    // For all other fields, use the original driver data.
+                    originalValue = driverForDate[key];
+                }
+
+                // 3. Only add the field if the value has actually changed.
+                // Using parseFloat for numeric comparison where appropriate.
+                const numOriginal = parseFloat(originalValue);
+                const numNew = parseFloat(newValue);
+
+                if (isNaN(numOriginal) || isNaN(numNew)) {
+                    // Fallback to string comparison for non-numeric values.
+                    if (String(originalValue) !== String(newValue)) {
+                         fieldsToUpdate[key] = newValue;
+                    }
+                } else {
+                    // Use numeric comparison to avoid formatting issues (e.g., 7.1 vs 7.10).
+                    if (numOriginal !== numNew) {
+                        fieldsToUpdate[key] = newValue;
+                    }
                 }
             });
+            
+            // --- FIX ENDS HERE ---
     
             if (Object.keys(fieldsToUpdate).length > 0) {
                 ui.showLoadingOverlay();
                 const payDate = driverForDate.pay_date.split('T')[0];
                 const updates = Object.entries(fieldsToUpdate).map(([fieldName, newValue]) => {
-                    const numericVal = parseFloat(newValue);
-                    masterDriverRecord[fieldName] = isNaN(numericVal) ? newValue : numericVal;
                     return { fieldName, newValue };
                 });
-                await api.saveEditableData(masterDriverRecord.id, payDate, updates);
+                await api.saveEditableData(driverForDate.id, payDate, updates);
 
+                // Update the local cache of overrides
                 updates.forEach(update => {
                     const { fieldName, newValue } = update;
-                    const existingOverrideIndex = savedOverrides.findIndex(ov => String(ov.driverId) === String(masterDriverRecord.id) && ov.payDate?.split('T')[0] === payDate && ov.fieldName === fieldName);
+                    const existingOverrideIndex = savedOverrides.findIndex(ov => String(ov.driverId) === String(driverForDate.id) && ov.payDate?.split('T')[0] === payDate && ov.fieldName === fieldName);
                     if (existingOverrideIndex > -1) {
                         savedOverrides[existingOverrideIndex].newValue = newValue;
                     } else {
-                        savedOverrides.push({ driverId: masterDriverRecord.id, payDate: payDate, fieldName: fieldName, newValue: newValue });
+                        savedOverrides.push({ driverId: driverForDate.id, payDate: payDate, fieldName: fieldName, newValue: newValue });
                     }
                 });
 
