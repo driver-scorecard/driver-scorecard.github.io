@@ -2317,16 +2317,16 @@ function initDispatcherView(
                 const originalSpeedingAlerts = driverInProcessedList.speedingAlerts;
                 // (and any other raw data fields that get reset)
 
-               // 2. Run the "Weeks Out" calculation on the *base* driver.
+// 2. Run the "Weeks Out" calculation on the *base* driver.
                 // This will incorrectly set percentiles to 0 on the 'recalculatedDriver' object,
                 // but we only want its activity data.
                 const [recalculatedDriver] = calc.processDriverDataForDate(
                     [driverInBaseList], 
-                    mileageData, 
+                    mileageIndex, 
                     settings, 
-                    allSafetyData, 
+                    safetyIndex, 
                     overriddenDistances, 
-                    daysTakenHistory, 
+                    daysTakenIndex, 
                     savedOverrides,
                     allDrivers
                 );
@@ -4190,3 +4190,4 @@ function loadAndRenderFuelTankAnalysis() {
     }
 
 }
+
