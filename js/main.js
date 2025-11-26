@@ -2317,7 +2317,7 @@ function initDispatcherView(
                 const originalSpeedingAlerts = driverInProcessedList.speedingAlerts;
                 // (and any other raw data fields that get reset)
 
-                // 2. Run the "Weeks Out" calculation on the *base* driver.
+               // 2. Run the "Weeks Out" calculation on the *base* driver.
                 // This will incorrectly set percentiles to 0 on the 'recalculatedDriver' object,
                 // but we only want its activity data.
                 const [recalculatedDriver] = calc.processDriverDataForDate(
@@ -2327,7 +2327,7 @@ function initDispatcherView(
                     allSafetyData, 
                     overriddenDistances, 
                     daysTakenHistory, 
-                    dispatcherOverrides,
+                    savedOverrides,
                     allDrivers
                 );
 
@@ -4188,4 +4188,5 @@ function loadAndRenderFuelTankAnalysis() {
         // --- UPDATE COLSPAN ---
         tableBody.innerHTML = `<tr><td colspan="7" class="text-center py-10 text-red-500">An error occurred during analysis: ${error.message}</td></tr>`;
     }
+
 }
