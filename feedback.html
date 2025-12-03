@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Driver Feedback</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="text-slate-300">
+
+    <div id="feedback-survey-modal" class="custom-modal-overlay feedback-page-overlay">
+        <div id="custom-modal" class="w-full max-w-2xl mx-auto bg-slate-800 border border-slate-700 rounded-xl shadow-2xl overflow-hidden"> <div id="feedback-form-container">
+                <div class="custom-modal-header">
+                    <h3 id="custom-modal-title" class="text-xl font-bold text-white">Driver Feedback</h3>
+                </div>
+                <div class="custom-modal-body space-y-5 p-6"> <p class="text-sm text-slate-300">
+                        Please provide your feedback for 
+                        <strong id="feedback-driver-name" class="text-white">...</strong>.
+                    </p>
+
+                    <div>
+                        <label class="block text-sm font-medium text-slate-300 mb-2">Did this driver leave on good terms?</label>
+                        <div class="radio-group" id="terms-group">
+                            <input type="radio" id="terms-yes" name="terms" value="Yes" checked>
+                            <label for="terms-yes" class="radio-label">Yes</label>
+                            
+                            <input type="radio" id="terms-no" name="terms" value="No">
+                            <label for="terms-no" class="radio-label">No</label>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-slate-300 mb-2">Would you rehire this driver?</label>
+                        <div class="radio-group" id="rehire-group">
+                            <input type="radio" id="rehire-yes" name="rehire" value="Yes" checked>
+                            <label for="rehire-yes" class="radio-label">Yes</label>
+                            
+                            <input type="radio" id="rehire-no" name="rehire" value="No">
+                            <label for="rehire-no" class="radio-label">No</label>
+                            
+                            <input type="radio" id="rehire-maybe" name="rehire" value="Maybe">
+                            <label for="rehire-maybe" class="radio-label">Maybe</label>
+                        </div>
+                    </div>
+                    
+                    <div class="space-y-3 pt-2">
+                        <div class="star-rating">
+                            <span class="star-rating-label">Coachable</span>
+                            <div class="star-rating-stars" id="coachable-stars">
+                                <input type="radio" id="coach-10" name="coachable" value="10" checked><label for="coach-10">★</label>
+                                <input type="radio" id="coach-9" name="coachable" value="9"><label for="coach-9">★</label>
+                                <input type="radio" id="coach-8" name="coachable" value="8"><label for="coach-8">★</label>
+                                <input type="radio" id="coach-7" name="coachable" value="7"><label for="coach-7">★</label>
+                                <input type="radio" id="coach-6" name="coachable" value="6"><label for="coach-6">★</label>
+                                <input type="radio" id="coach-5" name="coachable" value="5"><label for="coach-5">★</label>
+                                <input type="radio" id="coach-4" name="coachable" value="4"><label for="coach-4">★</label>
+                                <input type="radio" id="coach-3" name="coachable" value="3"><label for="coach-3">★</label>
+                                <input type="radio" id="coach-2" name="coachable" value="2"><label for="coach-2">★</label>
+                                <input type="radio" id="coach-1" name="coachable" value="1"><label for="coach-1">★</label>
+                            </div>
+                            <span class="star-rating-value" id="coachable-value">10/10</span>
+                        </div>
+
+                        <div class="star-rating">
+                            <span class="star-rating-label">Hustle</span>
+                            <div class="star-rating-stars" id="hustle-stars">
+                                <input type="radio" id="hustle-10" name="hustle" value="10" checked><label for="hustle-10">★</label>
+                                <input type="radio" id="hustle-9" name="hustle" value="9"><label for="hustle-9">★</label>
+                                <input type="radio" id="hustle-8" name="hustle" value="8"><label for="hustle-8">★</label>
+                                <input type="radio" id="hustle-7" name="hustle" value="7"><label for="hustle-7">★</label>
+                                <input type="radio" id="hustle-6" name="hustle" value="6"><label for="hustle-6">★</label>
+                                <input type="radio" id="hustle-5" name="hustle" value="5"><label for="hustle-5">★</label>
+                                <input type="radio" id="hustle-4" name="hustle" value="4"><label for="hustle-4">★</label>
+                                <input type="radio" id="hustle-3" name="hustle" value="3"><label for="hustle-3">★</label>
+                                <input type="radio" id="hustle-2" name="hustle" value="2"><label for="hustle-2">★</label>
+                                <input type="radio" id="hustle-1" name="hustle" value="1"><label for="hustle-1">★</label>
+                            </div>
+                            <span class="star-rating-value" id="hustle-value">10/10</span>
+                        </div>
+
+                        <div class="star-rating">
+                            <span class="star-rating-label">Communication</span>
+                            <div class="star-rating-stars" id="comm-stars">
+                                <input type="radio" id="comm-10" name="communication" value="10" checked><label for="comm-10">★</label>
+                                <input type="radio" id="comm-9" name="communication" value="9"><label for="comm-9">★</label>
+                                <input type="radio" id="comm-8" name="communication" value="8"><label for="comm-8">★</label>
+                                <input type="radio" id="comm-7" name="communication" value="7"><label for="comm-7">★</label>
+                                <input type="radio" id="comm-6" name="communication" value="6"><label for="comm-6">★</label>
+                                <input type="radio" id="comm-5" name="communication" value="5"><label for="comm-5">★</label>
+                                <input type="radio" id="comm-4" name="communication" value="4"><label for="comm-4">★</label>
+                                <input type="radio" id="comm-3" name="communication" value="3"><label for="comm-3">★</label>
+                                <input type="radio" id="comm-2" name="communication" value="2"><label for="comm-2">★</label>
+                                <input type="radio" id="comm-1" name="communication" value="1"><label for="comm-1">★</label>
+                            </div>
+                            <span class="star-rating-value" id="comm-value">10/10</span>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label for="feedback-note-textarea" class="block text-sm font-medium text-slate-300 mb-2">Note (Optional)</label>
+                        <textarea id="feedback-note-textarea" rows="4" class="w-full settings-input" placeholder="Add any specific details or comments here..."></textarea>
+                    </div>
+
+                    <p id="feedback-error-msg" class="text-sm text-red-500 text-center hidden pt-2"></p>
+                </div>
+                <div class="custom-modal-footer">
+                    <button id="submit-feedback-btn" class="modal-btn modal-btn-primary w-full">Submit Feedback</button>
+                </div>
+            </div>
+
+            <div id="feedback-success-container" class="hidden">
+                <div class="custom-modal-body space-y-4 text-center p-8">
+                    <svg class="mx-auto h-16 w-16 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    <h3 class="text-2xl font-bold text-white">Thank You!</h3>
+                    <p class="text-sm text-slate-300">
+                        Your feedback has been submitted successfully. You may now close this window.
+                    </p>
+                </div>
+            </div>
+
+        </div>
+    </div>
+    
+    <script type="module" defer src="js/feedback.js"></script>
+</body>
+</html>
