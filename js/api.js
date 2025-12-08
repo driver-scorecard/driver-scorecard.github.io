@@ -4,7 +4,7 @@
  * * with a session-based in-memory caching layer to improve performance during a single session.
  */
 
-import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import {
     SETTINGS_SCRIPT_URL,
     LOGIN_SCRIPT_URL,
@@ -829,4 +829,5 @@ export function getCachedFuelHistory() {
  */
 export function getCachedPurchaseHistory() {
     return getCachedData('fuelPurchaseHistory_UNIFIED');
+
 }
