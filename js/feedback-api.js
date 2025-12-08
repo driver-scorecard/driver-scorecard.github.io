@@ -2,7 +2,7 @@
  * feedback-api.js
  * * This script connects the public feedback.html page to Supabase.
  */
-import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 
 // 1. Create a Supabase client just for this page
@@ -29,4 +29,5 @@ export async function submitPublicFeedback(feedbackData) {
     
     // 4. If it succeeds, return the new data
     return { status: 'success', data: data[0] };
+
 }
