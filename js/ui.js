@@ -1593,7 +1593,7 @@ export function closeEditPanel() {
     editOverlay.classList.add('hidden');
 }
 
-export function openActivityHistoryModal(driver, mileageData, settings, daysTakenHistory, dispatcherOverrides) {
+export function openActivityHistoryModal(driver, mileageData, settings, daysTakenHistory, dispatcherOverrides, allLockedData = {}) {
     const modal = document.getElementById('activity-history-modal');
     const content = document.getElementById('activity-history-content');
     document.getElementById('activity-history-driver-name').textContent = driver.name;
@@ -1651,69 +1651,96 @@ export function openActivityHistoryModal(driver, mileageData, settings, daysTake
             break;
         }
 
+        // --- NEW: Check for Lock Snapshot ---
+        const currentPayDate = new Date(payDate);
+        currentPayDate.setUTCDate(payDate.getUTCDate() - (weekIndex * 7));
+        const currentPayDateStr = currentPayDate.toISOString().split('T')[0];
+        const lockKey = `${driver.id}_${currentPayDateStr}`;
+        
+        let lockedWeeklyActivity = null;
+        let isFullyConfirmed = true; // Default true, verify below
+        let isLocked = false;
+
+        if (allLockedData[lockKey]) {
+            try {
+                const snapshot = JSON.parse(allLockedData[lockKey]);
+                if (snapshot.weeklyActivity) {
+                    lockedWeeklyActivity = snapshot.weeklyActivity;
+                    isLocked = true;
+                    // If locked, it is by definition confirmed/finalized
+                    isFullyConfirmed = true; 
+                }
+            } catch (e) {
+                console.error("Error parsing locked data:", e);
+            }
+        }
+
         const tuesday = new Date(monday);
         tuesday.setUTCDate(monday.getUTCDate() - 6);
 
         let weeklyActivityData = [];
-        // *** FIX 2: Ensure these label arrays are defined ***
-        const dayLabels = ['Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday', 'Monday'];
-        const dayShortLabels = ['T', 'W', 'T', 'F', 'S', 'S', 'M'];
+        
+        if (isLocked && lockedWeeklyActivity) {
+            // --- USE SNAPSHOT DATA ---
+            weeklyActivityData = lockedWeeklyActivity;
+        } else {
+            // --- USE LIVE CALCULATION ---
+            const dayLabels = ['Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday', 'Monday'];
+            const dayShortLabels = ['T', 'W', 'T', 'F', 'S', 'S', 'M'];
 
-        for (let j = 0; j < 7; j++) {
-            const currentDay = new Date(tuesday);
-            currentDay.setUTCDate(tuesday.getUTCDate() + j);
-            const dayString = formatDate(currentDay);
-            const mileage = driverMileageMap.get(dayString) || 0;
-            const formattedDate = `${dayLabels[j]}, ${(currentDay.getUTCMonth() + 1).toString().padStart(2, '0')}.${currentDay.getUTCDate().toString().padStart(2, '0')}`;
+            for (let j = 0; j < 7; j++) {
+                const currentDay = new Date(tuesday);
+                currentDay.setUTCDate(tuesday.getUTCDate() + j);
+                const dayString = formatDate(currentDay);
+                const mileage = driverMileageMap.get(dayString) || 0;
+                const formattedDate = `${dayLabels[j]}, ${(currentDay.getUTCMonth() + 1).toString().padStart(2, '0')}.${currentDay.getUTCDate().toString().padStart(2, '0')}`;
 
-            const overrideKey = `${driver.name}_${dayString}`;
-            const overrideStatus = dispatcherOverrides[overrideKey];
-            const isOverridden = !!dispatcherOverrides[overrideKey];
+                const overrideKey = `${driver.name}_${dayString}`;
+                const overrideStatus = dispatcherOverrides[overrideKey];
+                const isOverridden = !!dispatcherOverrides[overrideKey];
 
-            const statusesForDay = driverChangelog
-                .filter(log => new Date(log.date).toLocaleDateString('en-US', { timeZone: 'America/Chicago' }) === currentDay.toLocaleDateString('en-US', { timeZone: 'America/Chicago' }))
-                .map(log => log.activity_status);
-            const uniqueStatuses = [...new Set(statusesForDay)];
-            const systemStatusText = uniqueStatuses.length > 0 ? uniqueStatuses.join(', ') : 'No Data'; // Changed back to 'No Data'
-            
-            let finalStatus = systemStatusText;
-            let tooltipStatus = systemStatusText;
-            let isChanged = false;
+                const statusesForDay = driverChangelog
+                    .filter(log => new Date(log.date).toLocaleDateString('en-US', { timeZone: 'America/Chicago' }) === currentDay.toLocaleDateString('en-US', { timeZone: 'America/Chicago' }))
+                    .map(log => log.activity_status);
+                const uniqueStatuses = [...new Set(statusesForDay)];
+                const systemStatusText = uniqueStatuses.length > 0 ? uniqueStatuses.join(', ') : 'No Data';
+                
+                let finalStatus = systemStatusText;
+                let tooltipStatus = systemStatusText;
+                let isChanged = false;
 
-            if (isOverridden) {
-                if (overrideStatus !== 'CORRECT') {
-                    finalStatus = overrideStatus;
-                    tooltipStatus = `${overrideStatus} (Dispatch Override)`;
-                    isChanged = true;
+                if (isOverridden) {
+                    if (overrideStatus !== 'CORRECT') {
+                        finalStatus = overrideStatus;
+                        tooltipStatus = `${overrideStatus} (Dispatch Override)`;
+                        isChanged = true;
+                    }
+                }
+
+                weeklyActivityData.push({
+                    day: dayShortLabels[j],
+                    mileage: mileage,
+                    fullDate: formattedDate,
+                    statuses: finalStatus,
+                    tooltipStatus: tooltipStatus,
+                    isOverridden: isOverridden,
+                    isChanged: isChanged
+                });
+            }
+
+            // Check confirmation status for live data
+            for (let j = 0; j < 7; j++) {
+                const currentDay = new Date(tuesday);
+                currentDay.setUTCDate(tuesday.getUTCDate() + j);
+                const dayString = formatDate(currentDay);
+                const overrideKey = `${driver.name}_${dayString}`;
+                if (!dispatcherOverrides[overrideKey]) {
+                    isFullyConfirmed = false;
+                    break;
                 }
             }
-
-            weeklyActivityData.push({
-                day: dayShortLabels[j],
-                mileage: mileage,
-                fullDate: formattedDate,
-                statuses: finalStatus,
-                tooltipStatus: tooltipStatus,
-                isOverridden: isOverridden,
-                isChanged: isChanged
-            });
         }
         
-        // *** FIX 3: This is the correct logic block for the checkmark and loop ***
-
-        // --- Check if this week is fully confirmed ---
-        let isFullyConfirmed = true;
-        for (let j = 0; j < 7; j++) {
-            const currentDay = new Date(tuesday);
-            currentDay.setUTCDate(tuesday.getUTCDate() + j);
-            const dayString = formatDate(currentDay);
-            const overrideKey = `${driver.name}_${dayString}`;
-            if (!dispatcherOverrides[overrideKey]) {
-                isFullyConfirmed = false;
-                break;
-            }
-        }
-
         const checkmarkHtml = isFullyConfirmed ?
             `<div class="tooltip-container" data-tooltip="Reviewed by Dispatcher">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
@@ -1728,16 +1755,21 @@ export function openActivityHistoryModal(driver, mileageData, settings, daysTake
             let colorClass = 'activity-red'; // Default to red
             const statuses = (activity.statuses || '').toUpperCase();
 
-            if (statuses.includes('DAY_OFF')) {
+            // --- UPDATED COLOR LOGIC ---
+            if (statuses.includes('NOT_STARTED') || statuses.includes('CONTRACT_ENDED')) {
+                colorClass = 'activity-grey';
+            } else if (statuses.includes('DAY_OFF')) {
                 colorClass = 'activity-red';
             } else if (statuses.includes('WITHOUT_LOAD')) {
                 colorClass = 'activity-orange';
             } else if (statuses.includes('ACTIVE')) {
                 colorClass = 'activity-green';
-            } else if (statuses.includes('NO DATA') || statuses.includes('NOT_STARTED') || statuses.includes('CONTRACT_ENDED')) {
+            } else if (activity.mileage > 0) {
+                colorClass = 'activity-green';
+            } else if (statuses.includes('NO DATA')) {
                 colorClass = 'activity-grey';
             } else {
-                 colorClass = (parseFloat(activity.mileage) || 0) > 0 ? 'activity-green' : 'activity-red';
+                colorClass = 'activity-red';
             }
 
             const miles = (parseFloat(activity.mileage) || 0).toFixed(0);
@@ -1757,7 +1789,10 @@ export function openActivityHistoryModal(driver, mileageData, settings, daysTake
         // Now we build the final HTML for the week, including the checkmark
         let weekHtml = `<div class="mb-4 p-3 bg-slate-800 rounded-lg">
                             <div class="flex justify-between items-center mb-2">
-                                <p class="text-sm font-semibold text-slate-300">Week of ${formatDate(tuesday)} to ${formatDate(monday)}</p>
+                                <div class="flex items-center gap-2">
+                                    <p class="text-sm font-semibold text-slate-300">Week of ${formatDate(tuesday)} to ${formatDate(monday)}</p>
+                                    ${isLocked ? '<span class="text-xs font-bold text-blue-400 border border-blue-400 px-1 rounded">LOCKED</span>' : ''}
+                                </div>
                                 ${checkmarkHtml}
                             </div>
                             <div class="flex items-center justify-center gap-1">
