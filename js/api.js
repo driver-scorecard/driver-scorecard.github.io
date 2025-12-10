@@ -410,9 +410,11 @@ export async function loadDispatcherOverrides() {
     const cachedData = getCachedData(cacheKey);
     if (cachedData) return Promise.resolve(cachedData);
 
+    // FIX: Added .limit(10000) to fetch up to 10,000 rows instead of the default 1,000
     const { data, error } = await supabase
         .from('dispatcher_overrides')
-        .select('*');
+        .select('*')
+        .limit(10000);
 
     if (error) {
         console.error("Failed to load dispatcher overrides:", error);
@@ -459,9 +461,11 @@ export async function loadWeeklyNotes() {
     const cachedData = getCachedData(cacheKey);
     if (cachedData) return Promise.resolve(cachedData);
 
+    // FIX: Added .limit(10000) to fetch up to 10,000 rows instead of the default 1,000
     const { data, error } = await supabase
         .from('weekly_notes')
-        .select('*');
+        .select('*')
+        .limit(10000);
 
     if (error) {
         console.error("Failed to load weekly notes:", error);
@@ -829,5 +833,4 @@ export function getCachedFuelHistory() {
  */
 export function getCachedPurchaseHistory() {
     return getCachedData('fuelPurchaseHistory_UNIFIED');
-
 }
