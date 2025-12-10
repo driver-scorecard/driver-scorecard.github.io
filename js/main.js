@@ -944,7 +944,7 @@ userProfilesTableBody.addEventListener('click', async (e) => {
             e.stopPropagation();
             const driver = driversForDate.find(d => d.id == targetElement.dataset.driverId);
             if (driver) {
-                ui.openActivityHistoryModal(driver, mileageData, settings, daysTakenHistory, dispatcherOverrides);
+                ui.openActivityHistoryModal(driver, mileageData, settings, daysTakenHistory, dispatcherOverrides, allLockedData);
             }
             return;
         }
