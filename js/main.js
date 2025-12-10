@@ -1980,15 +1980,15 @@ function processDataForSelectedDate() {
             // (in case they weren't in the snapshot)
             const originalId = driver.id;
             const originalNote = driver.weeklyNote; // from previous step
-            const originalReviewed = driver.isDispatcherReviewed; // from calc
-
+            
             // 3. Overwrite the live driver object with the snapshot
             Object.assign(driver, lockedData);
 
             // 4. Restore the preserved properties
             driver.id = originalId;
             driver.weeklyNote = originalNote;
-            driver.isDispatcherReviewed = originalReviewed;
+            // FIX: We do NOT restore 'isDispatcherReviewed' from live calc. 
+            // We assume the value in 'lockedData' (the snapshot) is the correct, frozen status.
             
             // 5. Set the lock flag
             driver.isLocked = true;
