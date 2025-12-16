@@ -200,10 +200,11 @@ export function renderTable(data, state, currentUser) {
             let content = driver[key];
             if (key === 'name') {
                 let icons = '<div class="flex items-center gap-1.5">';
-                if (driver.milesWeek > 0) {
+                // FIX: Check the flags for source data existence, not the edited values
+                if (driver.hasPrologsData) {
                     icons += '<div class="tooltip-container" data-tooltip="ProLogs data available"><div class="data-indicator indicator-p">P</div></div>';
                 }
-                if (driver.safetyScore > 0) {
+                if (driver.hasSamsaraData) {
                     icons += '<div class="tooltip-container" data-tooltip="Safety/Samsara data available"><div class="data-indicator indicator-s">S</div></div>';
                 }
                 icons += '</div>';
@@ -1352,7 +1353,22 @@ export function downloadDriverReport(driverData, settings, driversForDate) {
                 }
                 
                 // --- Generate description text (handles line breaks) ---
-                context.font = '400 10px Inter'; const words = (card.combinedText || '').split(' '); let currentLine = words[0]; const lines = []; for (let i = 1; i < words.length; i++) { const testLine = `${currentLine} ${words[i]}`; if (context.measureText(testLine).width > (width - 80)) { lines.push(currentLine); currentLine = words[i]; } else { currentLine = testLine; } } lines.push(currentLine); const descriptionHtml = lines.map((line, i) => `<tspan x="60" dy="${i === 0 ? 0 : '1.4em'}">${line}</tspan>`).join('');
+                // FIX: Force combinedText to be a string to prevent .split() crash on edited data
+                context.font = '400 10px Inter'; 
+                const words = String(card.combinedText || '').split(' '); 
+                let currentLine = words[0]; 
+                const lines = []; 
+                for (let i = 1; i < words.length; i++) { 
+                    const testLine = `${currentLine} ${words[i]}`; 
+                    if (context.measureText(testLine).width > (width - 80)) { 
+                        lines.push(currentLine); 
+                        currentLine = words[i]; 
+                    } else { 
+                        currentLine = testLine; 
+                    } 
+                } 
+                lines.push(currentLine); 
+                const descriptionHtml = lines.map((line, i) => `<tspan x="60" dy="${i === 0 ? 0 : '1.4em'}">${line}</tspan>`).join('');
 
                 return `<g><rect x="40" y="${card_y}" width="${width - 80}" height="${card_height}" fill="#1e293b" fill-opacity="0.5" /><g transform="translate(55, ${y_base})"><path d="${card.titleIcon}" stroke="#94a3b8" stroke-width="1.5" fill="none" transform="scale(0.8) translate(0, -14)"/><text x="26" y="0" dominant-baseline="middle" font-size="15" font-weight="600" fill="#ffffff">${card.title}</text></g>${barHtml}<text x="${width - 55}" y="${y_base}" dominant-baseline="middle" font-size="18" font-weight="700" fill="${valueDisplayColor}" text-anchor="end">${card.value > 0 ? '+' : ''}${formatNumber(card.value)}%</text><text y="${card_y + card_height + 15}" font-size="10" fill="#60a5fa" dominant-baseline="middle">${descriptionHtml}</text>${barLabelsHtml}</g>`;
             }).join('')}
