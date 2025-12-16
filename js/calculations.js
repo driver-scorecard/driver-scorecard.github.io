@@ -544,21 +544,29 @@ export function processDriverDataForDate(driversForDate, mileageIndex, settings,
         driver.fullDaysOffHistory = uniqueDaysOff;
         
         // --- FIX 1: Normalize dates for milesWeek calculation ---
-        // Ensure m.date is treated as YYYY-MM-DD for comparison
-        driver.milesWeek = Math.round(driverMileageRecords
-            .filter(m => {
-                const mDateStr = m.date.split('T')[0]; 
-                return mDateStr >= tuesdayStr && mDateStr <= mondayStr;
-            })
-            .reduce((total, record) => total + (record.movement || 0), 0));
+        const weeklyMileageRecords = driverMileageRecords.filter(m => {
+            const mDateStr = m.date.split('T')[0]; 
+            return mDateStr >= tuesdayStr && mDateStr <= mondayStr;
+        });
+
+        // Calculate total miles
+        driver.milesWeek = Math.round(weeklyMileageRecords.reduce((total, record) => total + (record.movement || 0), 0));
+        
+        // NEW: Set flag for ProLogs icon (Only true if actual records exist)
+        driver.hasPrologsData = weeklyMileageRecords.length > 0; 
 
         if (safetyIndex) {
             const driverSafetyRecords = safetyIndex[driver.name] || [];
             const performanceDateStr = formatDate(performanceDate);
             const safetyRecord = driverSafetyRecords.find(record => record.date.split('T')[0] === performanceDateStr);
+            
             if (safetyRecord && safetyRecord.totalDistance) {
                 driver.samsaraDistance = Math.round(parseFloat(safetyRecord.totalDistance));
             }
+            // NEW: Set flag for Samsara icon (Only true if actual record exists)
+            driver.hasSamsaraData = !!safetyRecord;
+        } else {
+            driver.hasSamsaraData = false;
         }
 
         const weeklyActivityData = [];
