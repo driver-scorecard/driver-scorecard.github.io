@@ -35,6 +35,14 @@ export function getDriverReportData(driver, settings, driversForDate = []) {
     const report = { totalBonus: 0, totalPenalties: 0, bonuses: {}, totalTpog: 0, availableOffDays: 0, escrowDeduct: 0 };
     const grossPay = driver.gross || 0;
 
+    // --- CHECK EXCLUSIONS ---
+    const ignoreAll = driver.ignoreAll === true || driver.ignoreAll === 'true';
+    const ignoreWeeksOut = ignoreAll || (driver.ignoreWeeksOut === true || driver.ignoreWeeksOut === 'true');
+    const ignoreSafety = ignoreAll || (driver.ignoreSafety === true || driver.ignoreSafety === 'true');
+    const ignoreFuel = ignoreAll || (driver.ignoreFuel === true || driver.ignoreFuel === 'true');
+    const ignoreTenure = ignoreAll || (driver.ignoreTenure === true || driver.ignoreTenure === 'true');
+    const ignoreGross = ignoreAll || (driver.ignoreGrossBonus === true || driver.ignoreGrossBonus === 'true');
+
     // --- NEW CHECK ADDED ---
     // If gross is zero or non-existent, ignore all bonus/penalty metrics.
     if (grossPay <= 0) {
@@ -77,28 +85,21 @@ export function getDriverReportData(driver, settings, driversForDate = []) {
             report.escrowDeduct = excessDays * (settings.escrowDeductionAmount || 0);
         }
         
-
-
-        // --- FIX IS HERE ---
-        // Add these lines to prevent the UI from crashing
         report.totalPositiveBonuses = 0;
         report.totalPenalties = 0;
-        // ALSO add default bonus objects to prevent download crash
         report.bonuses['Weeks Out'] = { bonus: 0 };
         report.bonuses['Safety Score'] = { bonus: 0 };
         report.bonuses['Speeding Penalty'] = { bonus: 0 };
         report.bonuses['Fuel Efficiency'] = { bonus: 0 };
         report.bonuses['Tenure'] = { bonus: 0 };
         report.bonuses['Gross Target'] = { bonus: 0 };
-        // --- END OF FIX ---
 
-        // Return the report early, skipping all bonus/penalty logic
         return report;
     }
     // --- END OF NEW CHECK ---
 
 
-    // Check if an override for escrowDeduct exists on the driver object. If so, use it and stop further calculation for it.
+    // Check if an override for escrowDeduct exists on the driver object.
     if (driver.hasOwnProperty('escrowDeduct')) {
         report.escrowDeduct = parseFloat(driver.escrowDeduct) || 0;
     }
@@ -106,15 +107,20 @@ export function getDriverReportData(driver, settings, driversForDate = []) {
     // Weeks Out Bonus
     if (settings.enabledMetrics?.weeksOut ?? true) {
         const weeksOutDetails = getTieredBonusDetails(driver.weeksOut, settings.weeksOutTiers);
-        report.bonuses['Weeks Out'] = { bonus: weeksOutDetails.bonus };
-        report.totalBonus += weeksOutDetails.bonus;
+        const val = weeksOutDetails.bonus;
+        if (ignoreWeeksOut) {
+            report.bonuses['Weeks Out'] = { bonus: 0, potentialBonus: val, ignored: true };
+        } else {
+            report.bonuses['Weeks Out'] = { bonus: val };
+            report.totalBonus += val;
+        }
     } else {
         report.bonuses['Weeks Out'] = { bonus: 0 };
     }
 
     // Safety Score Bonus & Speeding Penalty
     if (settings.enabledMetrics?.safety ?? true) {
-        // Safety Score Bonus
+        // 1. Calculate Safety Score
         let safetyBonus = 0;
         const scoreMet = driver.safetyScore >= settings.safetyScoreThreshold;
         const milesMet = driver.stubMiles >= settings.safetyScoreMileageThreshold;
@@ -124,10 +130,8 @@ export function getDriverReportData(driver, settings, driversForDate = []) {
         } else if (scoreMet && milesMet) {
             safetyBonus = settings.safetyScoreBonus;
         }
-        report.bonuses['Safety Score'] = { bonus: safetyBonus };
-        report.totalBonus += safetyBonus;
 
-        // Speeding Penalty
+        // 2. Calculate Speeding Penalty
         let speedingPenalty = 0;
         const method = settings.speedingPenaltyMethod || 'percentile';
 
@@ -158,8 +162,18 @@ export function getDriverReportData(driver, settings, driversForDate = []) {
                 }
                 break;
         }
-        report.bonuses['Speeding Penalty'] = { bonus: speedingPenalty };
-        report.totalBonus += speedingPenalty;
+
+        // 3. Apply or Ignore
+        if (ignoreSafety) {
+            report.bonuses['Safety Score'] = { bonus: 0, potentialBonus: safetyBonus, ignored: true };
+            report.bonuses['Speeding Penalty'] = { bonus: 0, potentialBonus: speedingPenalty, ignored: true };
+        } else {
+            report.bonuses['Safety Score'] = { bonus: safetyBonus };
+            report.totalBonus += safetyBonus;
+            report.bonuses['Speeding Penalty'] = { bonus: speedingPenalty };
+            report.totalBonus += speedingPenalty;
+        }
+
     } else {
         report.bonuses['Safety Score'] = { bonus: 0 };
         report.bonuses['Speeding Penalty'] = { bonus: 0 };
@@ -168,7 +182,7 @@ export function getDriverReportData(driver, settings, driversForDate = []) {
     // Fuel Efficiency Bonus
     if (settings.enabledMetrics?.fuel ?? true) {
         let fuelBonus = 0;
-        let infoText = 'Fuel bonus not applicable.'; // Default text
+        let infoText = 'Fuel bonus not applicable.';
         const fuelMileageThreshold = settings.fuelMileageThreshold || 0;
         const driverMiles = driver.stubMiles || 0;
 
@@ -176,21 +190,19 @@ export function getDriverReportData(driver, settings, driversForDate = []) {
             const percentileDetails = getTieredBonusDetails(driver.mpgPercentile, settings.mpgPercentileTiers);
             fuelBonus = percentileDetails.bonus;
 
-            // --- START: Pre-calculate infoText ---
+            // InfoText Calculation
             const currentMpg = parseFloat(driver.mpg);
-            const currentPercentile = driver.mpgPercentile;
             const sortedTiers = [...settings.mpgPercentileTiers].sort((a, b) => a.threshold - b.threshold);
             let targetTier = null;
             
             if (fuelBonus < 0) {
-                targetTier = sortedTiers.find(t => t.bonus >= 0); // Find first non-negative tier
+                targetTier = sortedTiers.find(t => t.bonus >= 0);
             } else {
-                targetTier = sortedTiers.find(t => t.bonus > fuelBonus); // Find next highest tier
+                targetTier = sortedTiers.find(t => t.bonus > fuelBonus);
             }
 
             if (targetTier && driversForDate && driversForDate.length > 0) {
                 const targetPercentile = targetTier.threshold;
-                // Use the full driver list passed into the function
                 const allMpgValues = driversForDate.map(d => parseFloat(d.mpg)).filter(mpg => mpg > 0).sort((a, b) => a - b);
                 let targetMpg = 0;
 
@@ -211,12 +223,10 @@ export function getDriverReportData(driver, settings, driversForDate = []) {
                     infoText = 'Keep up the great work!';
                 }
             } else if (targetTier) {
-                // Fallback if full driver data isn't available (should not happen for lock)
                 infoText = fuelBonus < 0 ? 'Improve MPG to remove penalty.' : `Reach ${targetTier.threshold} percentile for next bonus.`;
             } else {
                 infoText = 'Maximum fuel bonus reached.';
             }
-            // --- END: Pre-calculate infoText ---
 
         } else if (driverMiles < fuelMileageThreshold) {
             infoText = `Drive ${fuelMileageThreshold} miles to qualify for fuel bonus.`;
@@ -224,8 +234,12 @@ export function getDriverReportData(driver, settings, driversForDate = []) {
             infoText = 'No MPG data available to calculate bonus.';
         }
         
-        report.bonuses['Fuel Efficiency'] = { bonus: fuelBonus, infoText: infoText }; // Save infoText
-        report.totalBonus += fuelBonus;
+        if (ignoreFuel) {
+            report.bonuses['Fuel Efficiency'] = { bonus: 0, potentialBonus: fuelBonus, infoText: infoText, ignored: true };
+        } else {
+            report.bonuses['Fuel Efficiency'] = { bonus: fuelBonus, infoText: infoText };
+            report.totalBonus += fuelBonus;
+        }
     } else {
         report.bonuses['Fuel Efficiency'] = { bonus: 0, infoText: 'Fuel metric disabled.' };
     }
@@ -240,49 +254,48 @@ export function getDriverReportData(driver, settings, driversForDate = []) {
                 }
             });
         }
-        report.bonuses['Tenure'] = { bonus: tenureBonus };
-        report.totalBonus += tenureBonus;
+        
+        if (ignoreTenure) {
+            report.bonuses['Tenure'] = { bonus: 0, potentialBonus: tenureBonus, ignored: true };
+        } else {
+            report.bonuses['Tenure'] = { bonus: tenureBonus };
+            report.totalBonus += tenureBonus;
+        }
     } else {
         report.bonuses['Tenure'] = { bonus: 0 };
     }
 
-    // --- MODIFIED: Gross Target Bonus ---
+    // Gross Target Bonus
     if (settings.enabledMetrics?.grossTarget ?? true) {
-        if (driver.ignoreGrossBonus === true || driver.ignoreGrossBonus === 'true') {
-            report.bonuses['Gross Target'] = { bonus: 0 };
-            // We consciously do NOT add to totalBonus here
-        } else {
-            let grossBonus = 0;
-            // Use the same range logic as speeding, but with 'bonus'
-            const sortedTiers = (settings.grossTargetTiers || []).sort((a, b) => a.from - b.from);
-            for (const tier of sortedTiers) {
-                const from = tier.from;
-                const to = tier.to || Infinity;
-                // Use driver.gross here
-                if (driver.gross >= from && driver.gross <= to) {
-                    grossBonus = tier.bonus;
-                    break; // Found the matching tier
-                }
+        let grossBonus = 0;
+        const sortedTiers = (settings.grossTargetTiers || []).sort((a, b) => a.from - b.from);
+        for (const tier of sortedTiers) {
+            const from = tier.from;
+            const to = tier.to || Infinity;
+            if (driver.gross >= from && driver.gross <= to) {
+                grossBonus = tier.bonus;
+                break; 
             }
+        }
+
+        if (ignoreGross) {
+            report.bonuses['Gross Target'] = { bonus: 0, potentialBonus: grossBonus, ignored: true };
+        } else {
             report.bonuses['Gross Target'] = { bonus: grossBonus };
             report.totalBonus += grossBonus;
         }
     } else {
         report.bonuses['Gross Target'] = { bonus: 0 };
     }
-    // --- END MODIFICATION ---
 
     // Separate Bonuses and Penalties
     report.totalPositiveBonuses = Object.values(report.bonuses).reduce((sum, { bonus }) => sum + Math.max(0, bonus), 0);
     report.totalPenalties = Object.values(report.bonuses).reduce((sum, { bonus }) => sum + Math.min(0, bonus), 0);
     
-    // const grossPay = driver.gross || 0; // This was moved to the top
     report.bonusesInDollars = (report.totalPositiveBonuses / 100) * grossPay;
     report.penaltiesInDollars = (report.totalPenalties / 100) * grossPay;
 
-
-
- const daysTakenThisWeek = driver.offDays || 0;
+    const daysTakenThisWeek = driver.offDays || 0;
     const balanceAtStartOfWeek = driver.balanceAtStartOfWeek || 0;
     const streakAtStartOfWeek = driver.streakAtStartOfWeek || 0;
     const currentStreak = driver.weeksOut || 0;
@@ -294,13 +307,11 @@ export function getDriverReportData(driver, settings, driversForDate = []) {
     // Check if the threshold was crossed during this week
     if (currentStreak >= startThreshold && streakAtStartOfWeek < startThreshold) {
         newlyEarnedThisWeek += settings.timeOffBaseDays;
-        // Also add any additional full weeks earned in the same period
         const additionalFullWeeks = Math.floor(currentStreak) - startThreshold;
         if (additionalFullWeeks > 0) {
             newlyEarnedThisWeek += additionalFullWeeks / weeksPerDay;
         }
     } else if (currentStreak > streakAtStartOfWeek && currentStreak > startThreshold) {
-        // If we are already past the threshold, calculate earnings based on the increase in full weeks
         const newFullWeeksEarned = Math.floor(currentStreak) - Math.floor(streakAtStartOfWeek);
         if (newFullWeeksEarned > 0) {
             newlyEarnedThisWeek = newFullWeeksEarned / weeksPerDay;
@@ -310,11 +321,11 @@ export function getDriverReportData(driver, settings, driversForDate = []) {
     const currentAvailable = balanceAtStartOfWeek + newlyEarnedThisWeek;
     report.availableOffDays = Math.max(0, currentAvailable);
 
-// Only calculate escrow if an override hasn't already set the value.
-if (!driver.hasOwnProperty('escrowDeduct')) {
-    const excessDays = Math.max(0, daysTakenThisWeek - Math.max(0, balanceAtStartOfWeek));
-    report.escrowDeduct = excessDays * (settings.escrowDeductionAmount || 0);
-}
+    // Only calculate escrow if an override hasn't already set the value.
+    if (!driver.hasOwnProperty('escrowDeduct')) {
+        const excessDays = Math.max(0, daysTakenThisWeek - Math.max(0, balanceAtStartOfWeek));
+        report.escrowDeduct = excessDays * (settings.escrowDeductionAmount || 0);
+    }
     
     // Final TPOG
     report.totalTpog = settings.baseRate + report.totalBonus;
