@@ -944,7 +944,8 @@ userProfilesTableBody.addEventListener('click', async (e) => {
             e.stopPropagation();
             const driver = driversForDate.find(d => d.id == targetElement.dataset.driverId);
             if (driver) {
-                ui.openActivityHistoryModal(driver, mileageData, settings, daysTakenHistory, dispatcherOverrides, allLockedData);
+                // Pass allWeeklyNotes as the last argument
+                ui.openActivityHistoryModal(driver, mileageData, settings, daysTakenHistory, dispatcherOverrides, allLockedData, allWeeklyNotes);
             }
             return;
         }
@@ -2191,7 +2192,9 @@ function initDispatcherView(
             return !!savedOverrides[`${driver.name}_${day.toISOString().split('T')[0]}`];
         });
 
-        const statusOptions = ['CORRECT', 'DAY_OFF', 'ACTIVE', 'WITHOUT_LOAD', 'NOT_STARTED', 'CONTRACT_ENDED'];
+        // --- NEW: Options without CORRECT ---
+        const statusOptions = ['ACTIVE', 'DAY_OFF', 'WITHOUT_LOAD', 'NOT_STARTED', 'CONTRACT_ENDED'];
+        
         let weekHtml = `
             <div>
                 <h2 class="text-xl font-semibold text-white mb-4">Confirm Activity for ${selectedDriverName}</h2>
@@ -2202,7 +2205,32 @@ function initDispatcherView(
             currentDay.setUTCDate(tuesday.getUTCDate() + i);
             const dayString = currentDay.toISOString().split('T')[0];
             const dayData = driver.activity[dayString] || { prologMiles: 0, systemStatus: 'NO DATA' };
+            
+            // --- NEW: Determine Default Selection ---
+            // 1. Normalize system status (e.g. "DAY OFF" -> "DAY_OFF")
+            let systemStatusNormalized = (dayData.systemStatus || '').replace(/ /g, '_');
+            
+            // 2. Map irregular system statuses to a valid option
+            if (!statusOptions.includes(systemStatusNormalized)) {
+                if (systemStatusNormalized.includes('ACTIVE')) systemStatusNormalized = 'ACTIVE';
+                else if (systemStatusNormalized.includes('DAY_OFF')) systemStatusNormalized = 'DAY_OFF';
+                else systemStatusNormalized = 'ACTIVE'; // Fallback
+            }
+
+            // 3. Check for saved override
             const savedStatus = savedOverrides[`${selectedDriverName}_${dayString}`];
+            
+            // 4. Determine what should be selected in the UI
+            // If saved as 'CORRECT' (legacy), we show the system status.
+            // If saved as specific status, we show that.
+            // If not saved, we show system status.
+            let selectedValue = savedStatus;
+            if (!selectedValue || selectedValue === 'CORRECT') {
+                selectedValue = systemStatusNormalized;
+            }
+            // ----------------------------------------
+
+            // Logic to color the card (If saved and explicit, show green. If just CORRECT legacy, show standard)
             const cardClass = savedStatus && savedStatus !== 'CORRECT' ? 'status-confirmed' : 'border-slate-700';
 
             weekHtml += `
@@ -2218,7 +2246,7 @@ function initDispatcherView(
                     <div class="mt-4 flex-shrink-0">
                         <label class="text-xs font-medium text-slate-400">Confirmation</label>
                         <select data-date="${dayString}" class="status-select w-full mt-1 py-1 px-2 border border-slate-600 bg-slate-700 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 text-sm" ${isWeekVerified ? 'disabled' : ''}>
-                            ${statusOptions.map(opt => `<option value="${opt}" ${savedStatus === opt ? 'selected' : ''}>${opt.replace(/_/g, ' ')}</option>`).join('')}
+                            ${statusOptions.map(opt => `<option value="${opt}" ${selectedValue === opt ? 'selected' : ''}>${opt.replace(/_/g, ' ')}</option>`).join('')}
                         </select>
                     </div>
                 </div>`;
@@ -2471,14 +2499,12 @@ function initDispatcherView(
 
     actionButton.addEventListener('click', () => {
         const weekDays = [...activityArea.querySelectorAll('.day-card')].map(card => card.id.replace('day-card-', ''));
-        const hasChanges = Object.keys(currentOverrides).length > 0;
         
         const overrides = weekDays.map(date => {
-            let status = 'CORRECT';
-            if(hasChanges) {
-                const key = `${selectedDriverName}_${date}`;
-                status = currentOverrides[date] || savedOverrides[key] || 'CORRECT';
-            }
+            // Robustly find the dropdown by attribute
+            const selectEl = document.querySelector(`.status-select[data-date="${date}"]`);
+            // Ensure we get the value, trim it, and default to ACTIVE only if absolutely necessary
+            const status = selectEl ? selectEl.value.trim() : 'ACTIVE';
             return { date, driverName: selectedDriverName, status };
         });
 
