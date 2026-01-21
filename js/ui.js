@@ -1016,11 +1016,22 @@ export function downloadDriverReport(driverData, settings, driversForDate) {
 
 
     performanceCards.forEach(card => {
-        // Make sure bonuses object exists before trying to read from it
+        // Make sure bonuses object exists
         if (!reportData.bonuses) {
             card.combinedText = "Data unavailable for this metric.";
             return;
         }
+
+        // Map card type to bonus key
+        let bonusKey;
+        if (card.type === 'weeksOut') bonusKey = 'Weeks Out';
+        else if (card.type === 'tenure') bonusKey = 'Tenure';
+        else if (card.type === 'fuel') bonusKey = 'Fuel Efficiency';
+        else if (card.type === 'grossTarget') bonusKey = 'Gross Target';
+        else if (card.type === 'speeding') bonusKey = 'Speeding Penalty';
+        else if (card.type === 'safety') bonusKey = 'Safety Score';
+
+        const bonusData = reportData.bonuses[bonusKey];
 
         // All references to 'settings' are now 'settingsToUse'
         switch (card.type) {
@@ -1140,13 +1151,31 @@ export function downloadDriverReport(driverData, settings, driversForDate) {
                     card.infoText = nextWeeksOutTier ? `Stay out for ${nextWeeksOutTier.threshold} weeks for a +${nextWeeksOutTier.bonus.toFixed(1)}% bonus.` : 'Max weeks out bonus reached.';
                 }
                 break;
-        }
-        if (card.type === 'grossTarget') {
-            card.combinedText = card.description; // Only use the description for Gross Target
-        } else {
-            card.combinedText = card.combinedText || `${card.description} ${card.infoText}`;
-        }
-    });
+            }
+
+            // --- NEW: Handle "Ignored" State with Potential Value ---
+            if (bonusData && bonusData.ignored) {
+                const potential = bonusData.potentialBonus || 0;
+                let suffix = '';
+                
+                if (potential > 0) suffix = ' (no bonus applied)';
+                else if (potential < 0) suffix = ' (no penalty applied)';
+                
+                // If it's ignored, we wipe the infoText (like "Reach X to get bonus")
+                // because it doesn't make sense if the metric is off.
+                card.infoText = ''; 
+                
+                // Append the suffix to the description
+                card.description = (card.description || '') + suffix;
+            }
+            // -------------------------------------------------------
+    
+            if (card.type === 'grossTarget') {
+                card.combinedText = card.description; // Only use the description for Gross Target
+            } else {
+                card.combinedText = card.combinedText || `${card.description} ${card.infoText}`;
+            }
+        });
     
     const width = 820;
 
@@ -1487,21 +1516,49 @@ export function openEditPanel(driverId, state) {
         <div><label class="block text-sm font-medium text-slate-400 mb-1">Escrow Deduct</label><input type="number" id="edit-escrowDeduct" class="edit-input" value="${reportData.escrowDeduct}"></div>
     `;
 
-    const isIgnoreChecked = driver.ignoreGrossBonus === true || driver.ignoreGrossBonus === 'true';
-    const grossFieldsHtml = `
-        <div class="mt-2 border-t border-slate-700 pt-4">
-            <div class="flex items-center justify-between mb-3">
-                <label class="text-sm font-medium text-slate-400" for="edit-ignoreGrossBonus">Ignore Gross Bonus/Penalty</label>
-                <input type="checkbox" id="edit-ignoreGrossBonus" class="edit-input h-5 w-5 rounded border-slate-600 bg-slate-700 text-blue-600 focus:ring-blue-500" style="width: auto; display: inline-block;" ${isIgnoreChecked ? 'checked' : ''}>
+    // --- METRIC EXCLUSIONS SECTION ---
+    const isTrue = (val) => val === true || val === 'true';
+    
+    const exclusionFieldsHtml = `
+        <div class="mt-2 border-t border-slate-700 pt-4 space-y-4">
+            <h3 class="text-sm font-bold text-slate-300">Metric Exclusions</h3>
+            
+            <div class="flex items-center justify-between bg-slate-800 p-2 rounded border border-slate-600">
+                <label class="text-sm font-bold text-white" for="edit-ignoreAll">Ignore EVERYTHING (Base Rate Only)</label>
+                <input type="checkbox" id="edit-ignoreAll" class="edit-input h-5 w-5 rounded border-slate-500 bg-slate-700 text-red-500 focus:ring-red-500" style="width: auto;" ${isTrue(driver.ignoreAll) ? 'checked' : ''}>
             </div>
+
+            <div class="grid grid-cols-2 gap-x-4 gap-y-2">
+                <div class="flex items-center justify-between">
+                    <label class="text-xs text-slate-400" for="edit-ignoreWeeksOut">Ignore Weeks Out</label>
+                    <input type="checkbox" id="edit-ignoreWeeksOut" class="edit-input h-4 w-4 rounded border-slate-600 bg-slate-700 text-blue-600" style="width: auto;" ${isTrue(driver.ignoreWeeksOut) ? 'checked' : ''}>
+                </div>
+                <div class="flex items-center justify-between">
+                    <label class="text-xs text-slate-400" for="edit-ignoreSafety">Ignore Safety</label>
+                    <input type="checkbox" id="edit-ignoreSafety" class="edit-input h-4 w-4 rounded border-slate-600 bg-slate-700 text-blue-600" style="width: auto;" ${isTrue(driver.ignoreSafety) ? 'checked' : ''}>
+                </div>
+                <div class="flex items-center justify-between">
+                    <label class="text-xs text-slate-400" for="edit-ignoreFuel">Ignore Fuel</label>
+                    <input type="checkbox" id="edit-ignoreFuel" class="edit-input h-4 w-4 rounded border-slate-600 bg-slate-700 text-blue-600" style="width: auto;" ${isTrue(driver.ignoreFuel) ? 'checked' : ''}>
+                </div>
+                <div class="flex items-center justify-between">
+                    <label class="text-xs text-slate-400" for="edit-ignoreTenure">Ignore Tenure</label>
+                    <input type="checkbox" id="edit-ignoreTenure" class="edit-input h-4 w-4 rounded border-slate-600 bg-slate-700 text-blue-600" style="width: auto;" ${isTrue(driver.ignoreTenure) ? 'checked' : ''}>
+                </div>
+                <div class="flex items-center justify-between">
+                    <label class="text-xs text-slate-400" for="edit-ignoreGrossBonus">Ignore Gross</label>
+                    <input type="checkbox" id="edit-ignoreGrossBonus" class="edit-input h-4 w-4 rounded border-slate-600 bg-slate-700 text-blue-600" style="width: auto;" ${isTrue(driver.ignoreGrossBonus) ? 'checked' : ''}>
+                </div>
+            </div>
+
             <div>
-                <label class="block text-sm font-medium text-slate-400 mb-1">Gross Override Note</label>
-                <input type="text" id="edit-grossOverrideNote" class="edit-input" value="${driver.grossOverrideNote || ''}" placeholder="Reason for override (appears on report)...">
+                <label class="block text-sm font-medium text-slate-400 mb-1">Override Note (Optional)</label>
+                <input type="text" id="edit-grossOverrideNote" class="edit-input" value="${driver.grossOverrideNote || ''}" placeholder="Reason for changes (appears on report)...">
             </div>
         </div>
     `;
 
-    editContent.innerHTML = `<div class="grid grid-cols-1 gap-4">${formHtml}${formFieldsHtml}${timeOffFieldsHtml}${grossFieldsHtml}</div>`;
+    editContent.innerHTML = `<div class="grid grid-cols-1 gap-4">${formHtml}${formFieldsHtml}${timeOffFieldsHtml}${exclusionFieldsHtml}</div>`;
 
     const editFooter = document.querySelector('#edit-panel footer');
     if (isNew) {
@@ -1609,7 +1666,7 @@ export function closeEditPanel() {
     editOverlay.classList.add('hidden');
 }
 
-export function openActivityHistoryModal(driver, mileageData, settings, daysTakenHistory, dispatcherOverrides, allLockedData = {}) {
+export function openActivityHistoryModal(driver, mileageData, settings, daysTakenHistory, dispatcherOverrides, allLockedData = {}, allWeeklyNotes = {}) {
     const modal = document.getElementById('activity-history-modal');
     const content = document.getElementById('activity-history-content');
     document.getElementById('activity-history-driver-name').textContent = driver.name;
@@ -1676,12 +1733,14 @@ export function openActivityHistoryModal(driver, mileageData, settings, daysTake
         let lockedWeeklyActivity = null;
         let isFullyConfirmed = true; // Default true, verify below
         let isLocked = false;
+        let lockedSnapshot = null; // Store the full snapshot for stats
 
         if (allLockedData[lockKey]) {
             try {
                 const snapshot = JSON.parse(allLockedData[lockKey]);
                 if (snapshot.weeklyActivity) {
                     lockedWeeklyActivity = snapshot.weeklyActivity;
+                    lockedSnapshot = snapshot; // Capture the whole object
                     isLocked = true;
                     // If locked, it is by definition confirmed/finalized
                     isFullyConfirmed = true; 
@@ -1690,6 +1749,40 @@ export function openActivityHistoryModal(driver, mileageData, settings, daysTake
                 console.error("Error parsing locked data:", e);
             }
         }
+
+        // --- Generate Stats HTML if Locked ---
+        let lockedStatsHtml = '';
+        if (isLocked && lockedSnapshot) {
+            const tpog = lockedSnapshot.totalTpog ? lockedSnapshot.totalTpog.toFixed(1) + '%' : '0.0%';
+            const gross = lockedSnapshot.gross ? '$' + Math.round(lockedSnapshot.gross).toLocaleString() : '$0';
+            const miles = lockedSnapshot.stubMiles ? Math.round(lockedSnapshot.stubMiles).toLocaleString() : '0';
+            // Handle escrow: show red negative amount if exists, else dash
+            const escrowVal = parseFloat(lockedSnapshot.escrowDeduct || 0);
+            const escrowDisplay = escrowVal > 0 ? `-$${escrowVal.toFixed(0)}` : '-';
+            const escrowColor = escrowVal > 0 ? 'text-red-400' : 'text-slate-500';
+
+            lockedStatsHtml = `
+                <div class="grid grid-cols-4 gap-2 text-[10px] sm:text-xs text-slate-400 mt-2 mb-3 bg-slate-900/60 p-2 rounded border border-slate-700/50">
+                    <div class="flex flex-col items-center">
+                        <span class="text-slate-500 uppercase tracking-wider text-[9px]">Gross</span>
+                        <span class="text-slate-200 font-medium">${gross}</span>
+                    </div>
+                    <div class="flex flex-col items-center">
+                        <span class="text-slate-500 uppercase tracking-wider text-[9px]">Stub Miles</span>
+                        <span class="text-slate-200 font-medium">${miles}</span>
+                    </div>
+                    <div class="flex flex-col items-center">
+                        <span class="text-slate-500 uppercase tracking-wider text-[9px]">Escrow</span>
+                        <span class="${escrowColor} font-medium">${escrowDisplay}</span>
+                    </div>
+                    <div class="flex flex-col items-center">
+                        <span class="text-slate-500 uppercase tracking-wider text-[9px]">Pay %</span>
+                        <span class="text-yellow-500 font-bold">${tpog}</span>
+                    </div>
+                </div>
+            `;
+        }
+        // -------------------------------------
 
         const tuesday = new Date(monday);
         tuesday.setUTCDate(monday.getUTCDate() - 6);
@@ -1802,19 +1895,70 @@ export function openActivityHistoryModal(driver, mileageData, settings, daysTake
                                 </div>`;
         });
 
-        // Now we build the final HTML for the week, including the checkmark
-        let weekHtml = `<div class="mb-4 p-3 bg-slate-800 rounded-lg">
-                            <div class="flex justify-between items-center mb-2">
-                                <div class="flex items-center gap-2">
-                                    <p class="text-sm font-semibold text-slate-300">Week of ${formatDate(tuesday)} to ${formatDate(monday)}</p>
-                                    ${isLocked ? '<span class="text-xs font-bold text-blue-400 border border-blue-400 px-1 rounded">LOCKED</span>' : ''}
-                                </div>
-                                ${checkmarkHtml}
-                            </div>
-                            <div class="flex items-center justify-center gap-1">
-                                ${activityBlocksHtml}
-                            </div>
-                        </div>`;
+        // --- 1. Note Icon Logic ---
+        // Try to get note from Snapshot (if locked) OR Global Cache (if unlocked)
+        let noteContent = '';
+        if (isLocked && lockedSnapshot && lockedSnapshot.weeklyNote) {
+            noteContent = lockedSnapshot.weeklyNote;
+        } else {
+            // Reconstruct the key: DriverName_YYYY-MM-DD
+            const noteKey = `${driver.name}_${currentPayDateStr}`;
+            if (allWeeklyNotes[noteKey]) {
+                noteContent = allWeeklyNotes[noteKey];
+            }
+        }
+
+        let noteIconHtml = '';
+        if (noteContent) {
+            const escapedNote = noteContent.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+            noteIconHtml = `
+                <div class="tooltip-container ml-2 cursor-help" data-tooltip="${escapedNote}">
+                    <svg class="w-4 h-4 text-indigo-300" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                    </svg>
+                </div>`;
+        }
+
+        // --- 2. Stats Segment (if locked) ---
+        let statsSegment = '';
+        if (isLocked && lockedSnapshot) {
+            const tpog = lockedSnapshot.totalTpog ? lockedSnapshot.totalTpog.toFixed(1) + '%' : '0.0%';
+            const gross = lockedSnapshot.gross ? '$' + Math.round(lockedSnapshot.gross).toLocaleString() : '$0';
+            const miles = lockedSnapshot.stubMiles ? Math.round(lockedSnapshot.stubMiles).toLocaleString() : '0';
+            const escrowVal = parseFloat(lockedSnapshot.escrowDeduct || 0);
+            const escrowDisplay = escrowVal > 0 ? `-$${escrowVal.toFixed(0)}` : '-';
+            const escrowColor = escrowVal > 0 ? 'text-red-400' : 'text-slate-500';
+
+            statsSegment = `
+                <div class="flex flex-wrap items-center text-[11px] sm:text-xs text-slate-400 mt-1 sm:mt-0 sm:ml-auto mr-4">
+                    <span class="hidden sm:inline text-slate-600 mx-2">|</span>
+                    <span class="mr-1">Gross:</span> <span class="text-slate-200 font-medium mr-3">${gross}</span>
+                    <span class="mr-1">Miles:</span> <span class="text-slate-200 font-medium mr-3">${miles}</span>
+                    <span class="mr-1">Escrow:</span> <span class="${escrowColor} font-medium mr-3">${escrowDisplay}</span>
+                    <span class="mr-1">Pay:</span> <span class="text-yellow-500 font-bold">${tpog}</span>
+                </div>
+            `;
+        }
+
+        // --- 3. Render Week Card (Single Row Layout) ---
+        let weekHtml = `
+            <div class="mb-3 bg-slate-800 rounded-lg border border-slate-700/50 shadow-sm overflow-hidden">
+                <div class="flex flex-wrap items-center justify-between px-3 py-2 bg-slate-900/40 border-b border-slate-700/50">
+                    <div class="flex items-center flex-grow">
+                        <span class="text-xs font-semibold text-slate-200 whitespace-nowrap">${formatDate(tuesday)} to ${formatDate(monday)}</span>
+                        ${isLocked ? '<span class="ml-2 text-[9px] font-bold text-blue-400 border border-blue-400 px-1 rounded uppercase tracking-wider">Locked</span>' : ''}
+                        ${noteIconHtml}
+                        ${statsSegment}
+                    </div>
+                    ${checkmarkHtml}
+                </div>
+                
+                <div class="flex items-center justify-center p-2">
+                    <div class="flex items-center gap-1">
+                        ${activityBlocksHtml}
+                    </div>
+                </div>
+            </div>`;
         
         historyHtml += weekHtml;
 
