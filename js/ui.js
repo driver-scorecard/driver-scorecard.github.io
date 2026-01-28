@@ -1704,6 +1704,26 @@ export function openActivityHistoryModal(driver, mileageData, settings, daysTake
     // *** FIX 1: Ensure mileage is a number ***
     const driverMileageMap = new Map(driverMileageRecords.map(m => [m.date, parseFloat(m.movement) || 0]));
 
+    // --- PRE-CALCULATE LOCKS BY NAME ---
+    // Build a lookup map using Name + Date. This ensures we find historical locks
+    // even if the driver's ID changed (e.g., switched companies/contracts).
+    const driverLocksByDate = {};
+    if (allLockedData) {
+        Object.values(allLockedData).forEach(jsonStr => {
+            // Optimization: Only parse if the string likely contains this driver
+            if (jsonStr.includes(driver.name)) { 
+                try {
+                    const snapshot = JSON.parse(jsonStr);
+                    // Verify strict name match and valid date
+                    if (snapshot.name === driver.name && snapshot.pay_date) {
+                        const dateKey = snapshot.pay_date.split('T')[0];
+                        driverLocksByDate[dateKey] = snapshot;
+                    }
+                } catch (e) { /* Ignore parsing errors */ }
+            }
+        });
+    }
+
     // --- START: Dynamic Loop Logic ---
     // 5. Loop dynamically without a fixed limit.
     let weekIndex = 0;
@@ -1724,65 +1744,53 @@ export function openActivityHistoryModal(driver, mileageData, settings, daysTake
             break;
         }
 
-        // --- NEW: Check for Lock Snapshot ---
         const currentPayDate = new Date(payDate);
         currentPayDate.setUTCDate(payDate.getUTCDate() - (weekIndex * 7));
         const currentPayDateStr = currentPayDate.toISOString().split('T')[0];
-        const lockKey = `${driver.id}_${currentPayDateStr}`;
         
+        // --- UPDATED: Look up lock by DATE (using the Name-based map) ---
         let lockedWeeklyActivity = null;
-        let isFullyConfirmed = true; // Default true, verify below
+        let isFullyConfirmed = true; 
         let isLocked = false;
-        let lockedSnapshot = null; // Store the full snapshot for stats
+        let lockedSnapshot = null; 
 
-        if (allLockedData[lockKey]) {
-            try {
-                const snapshot = JSON.parse(allLockedData[lockKey]);
-                if (snapshot.weeklyActivity) {
-                    lockedWeeklyActivity = snapshot.weeklyActivity;
-                    lockedSnapshot = snapshot; // Capture the whole object
-                    isLocked = true;
-                    // If locked, it is by definition confirmed/finalized
-                    isFullyConfirmed = true; 
-                }
-            } catch (e) {
-                console.error("Error parsing locked data:", e);
+        if (driverLocksByDate[currentPayDateStr]) {
+            lockedSnapshot = driverLocksByDate[currentPayDateStr];
+            if (lockedSnapshot.weeklyActivity) {
+                lockedWeeklyActivity = lockedSnapshot.weeklyActivity;
+                isLocked = true;
+                isFullyConfirmed = true;
             }
         }
+        // ---------------------------------------------------------------
 
         // --- Generate Stats HTML if Locked ---
-        let lockedStatsHtml = '';
+        let statsSegment = '';
+        let contractInfoHtml = ''; // New variable for Company/Contract
+
         if (isLocked && lockedSnapshot) {
             const tpog = lockedSnapshot.totalTpog ? lockedSnapshot.totalTpog.toFixed(1) + '%' : '0.0%';
             const gross = lockedSnapshot.gross ? '$' + Math.round(lockedSnapshot.gross).toLocaleString() : '$0';
             const miles = lockedSnapshot.stubMiles ? Math.round(lockedSnapshot.stubMiles).toLocaleString() : '0';
-            // Handle escrow: show red negative amount if exists, else dash
             const escrowVal = parseFloat(lockedSnapshot.escrowDeduct || 0);
             const escrowDisplay = escrowVal > 0 ? `-$${escrowVal.toFixed(0)}` : '-';
             const escrowColor = escrowVal > 0 ? 'text-red-400' : 'text-slate-500';
 
-            lockedStatsHtml = `
-                <div class="grid grid-cols-4 gap-2 text-[10px] sm:text-xs text-slate-400 mt-2 mb-3 bg-slate-900/60 p-2 rounded border border-slate-700/50">
-                    <div class="flex flex-col items-center">
-                        <span class="text-slate-500 uppercase tracking-wider text-[9px]">Gross</span>
-                        <span class="text-slate-200 font-medium">${gross}</span>
-                    </div>
-                    <div class="flex flex-col items-center">
-                        <span class="text-slate-500 uppercase tracking-wider text-[9px]">Stub Miles</span>
-                        <span class="text-slate-200 font-medium">${miles}</span>
-                    </div>
-                    <div class="flex flex-col items-center">
-                        <span class="text-slate-500 uppercase tracking-wider text-[9px]">Escrow</span>
-                        <span class="${escrowColor} font-medium">${escrowDisplay}</span>
-                    </div>
-                    <div class="flex flex-col items-center">
-                        <span class="text-slate-500 uppercase tracking-wider text-[9px]">Pay %</span>
-                        <span class="text-yellow-500 font-bold">${tpog}</span>
-                    </div>
+            // New: Extract Contract and Company info
+            const contract = lockedSnapshot.contract_type || 'Unknown';
+            const company = lockedSnapshot.company || 'Unknown';
+            contractInfoHtml = `<span class="ml-2 text-[9px] font-bold text-slate-400 border border-slate-600 px-1 rounded uppercase tracking-wider" title="Contract & Company">${contract} • ${company}</span>`;
+
+            statsSegment = `
+                <div class="flex flex-wrap items-center text-[11px] sm:text-xs text-slate-400 mt-1 sm:mt-0 sm:ml-auto mr-4">
+                    <span class="hidden sm:inline text-slate-600 mx-2">|</span>
+                    <span class="mr-1">Gross:</span> <span class="text-slate-200 font-medium mr-3">${gross}</span>
+                    <span class="mr-1">Miles:</span> <span class="text-slate-200 font-medium mr-3">${miles}</span>
+                    <span class="mr-1">Escrow:</span> <span class="${escrowColor} font-medium mr-3">${escrowDisplay}</span>
+                    <span class="mr-1">Pay:</span> <span class="text-yellow-500 font-bold">${tpog}</span>
                 </div>
             `;
         }
-        // -------------------------------------
 
         const tuesday = new Date(monday);
         tuesday.setUTCDate(monday.getUTCDate() - 6);
@@ -1919,27 +1927,6 @@ export function openActivityHistoryModal(driver, mileageData, settings, daysTake
                 </div>`;
         }
 
-        // --- 2. Stats Segment (if locked) ---
-        let statsSegment = '';
-        if (isLocked && lockedSnapshot) {
-            const tpog = lockedSnapshot.totalTpog ? lockedSnapshot.totalTpog.toFixed(1) + '%' : '0.0%';
-            const gross = lockedSnapshot.gross ? '$' + Math.round(lockedSnapshot.gross).toLocaleString() : '$0';
-            const miles = lockedSnapshot.stubMiles ? Math.round(lockedSnapshot.stubMiles).toLocaleString() : '0';
-            const escrowVal = parseFloat(lockedSnapshot.escrowDeduct || 0);
-            const escrowDisplay = escrowVal > 0 ? `-$${escrowVal.toFixed(0)}` : '-';
-            const escrowColor = escrowVal > 0 ? 'text-red-400' : 'text-slate-500';
-
-            statsSegment = `
-                <div class="flex flex-wrap items-center text-[11px] sm:text-xs text-slate-400 mt-1 sm:mt-0 sm:ml-auto mr-4">
-                    <span class="hidden sm:inline text-slate-600 mx-2">|</span>
-                    <span class="mr-1">Gross:</span> <span class="text-slate-200 font-medium mr-3">${gross}</span>
-                    <span class="mr-1">Miles:</span> <span class="text-slate-200 font-medium mr-3">${miles}</span>
-                    <span class="mr-1">Escrow:</span> <span class="${escrowColor} font-medium mr-3">${escrowDisplay}</span>
-                    <span class="mr-1">Pay:</span> <span class="text-yellow-500 font-bold">${tpog}</span>
-                </div>
-            `;
-        }
-
         // --- 3. Render Week Card (Single Row Layout) ---
         let weekHtml = `
             <div class="mb-3 bg-slate-800 rounded-lg border border-slate-700/50 shadow-sm overflow-hidden">
@@ -1947,6 +1934,7 @@ export function openActivityHistoryModal(driver, mileageData, settings, daysTake
                     <div class="flex items-center flex-grow">
                         <span class="text-xs font-semibold text-slate-200 whitespace-nowrap">${formatDate(tuesday)} to ${formatDate(monday)}</span>
                         ${isLocked ? '<span class="ml-2 text-[9px] font-bold text-blue-400 border border-blue-400 px-1 rounded uppercase tracking-wider">Locked</span>' : ''}
+                        ${contractInfoHtml} 
                         ${noteIconHtml}
                         ${statsSegment}
                     </div>
