@@ -1488,3 +1488,8 @@ td.distance-clickable:hover {
     color: #ffffff; /* white */
 }
 
+
+/* Make the Activity History modal approx 10% wider */
+#activity-history-modal > div {
+    max-width: 50rem !important; /* 53rem is ~10% wider than the default 48rem */
+}
