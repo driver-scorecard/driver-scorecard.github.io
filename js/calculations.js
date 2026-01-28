@@ -58,7 +58,8 @@ export function getDriverReportData(driver, settings, driversForDate = []) {
         const daysTakenThisWeek = driver.offDays || 0;
         const balanceAtStartOfWeek = driver.balanceAtStartOfWeek || 0;
         const streakAtStartOfWeek = driver.streakAtStartOfWeek || 0;
-        const currentStreak = driver.weeksOut || 0;
+        // UPDATED: Use peak streak for earning calculation if available
+        const currentStreak = (driver.peakWeeksOut !== undefined) ? driver.peakWeeksOut : (driver.weeksOut || 0);
 
         let newlyEarnedThisWeek = 0;
         const startThreshold = settings.timeOffStartAfterWeeks || 3;
@@ -81,7 +82,8 @@ export function getDriverReportData(driver, settings, driversForDate = []) {
         report.availableOffDays = Math.max(0, currentAvailable);
 
         if (!driver.hasOwnProperty('escrowDeduct')) {
-            const excessDays = Math.max(0, daysTakenThisWeek - Math.max(0, balanceAtStartOfWeek));
+            // FIX: Check against 'currentAvailable' (total budget), not just 'balanceAtStartOfWeek'
+            const excessDays = Math.max(0, daysTakenThisWeek - Math.max(0, currentAvailable));
             report.escrowDeduct = excessDays * (settings.escrowDeductionAmount || 0);
         }
         
@@ -298,7 +300,8 @@ export function getDriverReportData(driver, settings, driversForDate = []) {
     const daysTakenThisWeek = driver.offDays || 0;
     const balanceAtStartOfWeek = driver.balanceAtStartOfWeek || 0;
     const streakAtStartOfWeek = driver.streakAtStartOfWeek || 0;
-    const currentStreak = driver.weeksOut || 0;
+    // UPDATED: Use peak streak for earning calculation if available
+    const currentStreak = (driver.peakWeeksOut !== undefined) ? driver.peakWeeksOut : (driver.weeksOut || 0);
 
     let newlyEarnedThisWeek = 0;
     const startThreshold = settings.timeOffStartAfterWeeks || 3;
@@ -323,7 +326,8 @@ export function getDriverReportData(driver, settings, driversForDate = []) {
 
     // Only calculate escrow if an override hasn't already set the value.
     if (!driver.hasOwnProperty('escrowDeduct')) {
-        const excessDays = Math.max(0, daysTakenThisWeek - Math.max(0, balanceAtStartOfWeek));
+        // FIX: Check against 'currentAvailable' (total budget), not just 'balanceAtStartOfWeek'
+        const excessDays = Math.max(0, daysTakenThisWeek - Math.max(0, currentAvailable));
         report.escrowDeduct = excessDays * (settings.escrowDeductionAmount || 0);
     }
     
@@ -680,7 +684,10 @@ export function processDriverDataForDate(driversForDate, mileageIndex, settings,
                         }).length;
     
                         const oldStreakInWeeks = Math.floor(continuousDayStreak * dailyContribution);
-    
+                        
+                        // --- UPDATED: Track Max Streak Logic ---
+                        let maxDaysThisWeek = continuousDayStreak;
+
                         for (let i = 0; i < 7; i++) {
                             const currentDay = new Date(tuesday);
                             currentDay.setUTCDate(tuesday.getUTCDate() + i);
@@ -697,7 +704,11 @@ export function processDriverDataForDate(driversForDate, mileageIndex, settings,
                             } else if (!isDayOff) {
                                 continuousDayStreak++;
                             }
+                            
+                            // Capture peak streak before any future resets in the same week
+                            if (continuousDayStreak > maxDaysThisWeek) maxDaysThisWeek = continuousDayStreak;
                         }
+                        // ---------------------------------------
                         
                         const newStreakInWeeks = Math.floor(continuousDayStreak * dailyContribution);
     
@@ -716,6 +727,9 @@ export function processDriverDataForDate(driversForDate, mileageIndex, settings,
     
                         if (recordPayDateStr === selectedDateStr) {
                             driver.weeksOut = continuousDayStreak * dailyContribution;
+                            // Store peak for earnings calculation
+                            driver.peakWeeksOut = maxDaysThisWeek * dailyContribution;
+                            
                             if (resetTriggeredThisWeek) {
                                 driver.balanceAtStartOfWeek = 0;
                                 driver.streakAtStartOfWeek = 0;
@@ -784,8 +798,12 @@ export function processDriverDataForDate(driversForDate, mileageIndex, settings,
     
                         if (recordPayDateStr === selectedDateStr) {
                             driver.weeksOut = weekMetCriteria ? streak + 1 : streak;
+                            // For full weeks, peak is same as current unless logic differs, keeping consistent
+                            driver.peakWeeksOut = driver.weeksOut; 
+                            
                             if (hasNotStartedInWeek) {
                                 driver.weeksOut = 0; 
+                                driver.peakWeeksOut = 0;
                                 driver.balanceAtStartOfWeek = 0;
                                 driver.streakAtStartOfWeek = 0;
                             } else {
