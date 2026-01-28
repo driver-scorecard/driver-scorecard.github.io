@@ -225,7 +225,8 @@ export function getDriverReportData(driver, settings, driversForDate = []) {
                     infoText = 'Keep up the great work!';
                 }
             } else if (targetTier) {
-                infoText = fuelBonus < 0 ? 'Improve MPG to remove penalty.' : `Reach ${targetTier.threshold} percentile for next bonus.`;
+                // Change "percentile" to "Top X%"
+                infoText = fuelBonus < 0 ? 'Improve MPG to remove penalty.' : `Reach the Top ${100 - targetTier.threshold}% of the fleet for the next bonus.`;
             } else {
                 infoText = 'Maximum fuel bonus reached.';
             }
