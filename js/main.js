@@ -227,11 +227,8 @@ function filterAndRenderTable() {
         return 0;
     });
 
-    // Determine columns to show (Hide MPG for Franchise)
+    // Determine columns to show (Restriction removed: Franchise can now see MPG)
     let columnsToShow = visibleColumnKeys;
-    if (currentUser && currentUser.role.trim() === 'Franchise') {
-        columnsToShow = columnsToShow.filter(key => key !== 'mpg');
-    }
 
     ui.renderTable(filteredDrivers, {
         orderedColumnKeys,
