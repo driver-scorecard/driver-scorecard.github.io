@@ -1155,12 +1155,53 @@ userProfilesTableBody.addEventListener('click', async (e) => {
             
             if (action.startsWith('sort')) {
                 const isAsc = action === 'sort-asc';
+                
+                // Helper to safely get the value for sorting, calculating it if necessary
+                const getSortValue = (d, k) => {
+                    // 1. Handle calculated fields that might not exist directly on unlocked drivers
+                    if (['totalTpog', 'bonuses', 'penalties', 'escrowDeduct', 'availableOffDays', 'estimatedNet'].includes(k)) {
+                        let data = d;
+                        
+                        // If unlocked, we must calculate the values on the fly (same logic as renderTable)
+                        if (!d.isLocked) {
+                            // Calculate base report
+                            const report = calc.getDriverReportData(d, settings, processedDriversForDate);
+                            
+                            // Create a temporary object to hold values, respecting any manual overrides found on the driver object
+                            data = { ...report };
+                            if (d.hasOwnProperty('escrowDeduct')) data.escrowDeduct = d.escrowDeduct;
+                            if (d.hasOwnProperty('availableOffDays')) data.availableOffDays = d.availableOffDays;
+                        }
+
+                        // Return the specific field requested
+                        if (k === 'totalTpog') return data.totalTpog || 0;
+                        if (k === 'bonuses') return data.totalPositiveBonuses || 0;
+                        if (k === 'penalties') return data.totalPenalties || 0;
+                        if (k === 'escrowDeduct') return data.escrowDeduct || 0;
+                        if (k === 'availableOffDays') return data.availableOffDays || 0;
+                        if (k === 'estimatedNet') return data.estimatedNet || 0;
+                    }
+                    
+                    // 2. For standard fields (name, milesWeek, weeksOut, etc.), return directly
+                    return d[k];
+                };
+
                 processedDriversForDate.sort((a, b) => {
-                    let valA = a[key];
-                    let valB = b[key];
-                    if (typeof valA === 'number') return isAsc ? valA - valB : valB - valA;
+                    let valA = getSortValue(a, key);
+                    let valB = getSortValue(b, key);
+                    
+                    // Normalize null/undefined to 0 (for numbers) or empty string (for text) to prevent sort errors
+                    if (valA == null) valA = (typeof valB === 'number') ? 0 : '';
+                    if (valB == null) valB = (typeof valA === 'number') ? 0 : '';
+
+                    if (typeof valA === 'number' && typeof valB === 'number') {
+                        return isAsc ? valA - valB : valB - valA;
+                    }
+                    
+                    // Fallback to string comparison
                     return isAsc ? String(valA).localeCompare(String(valB)) : String(valB).localeCompare(String(valA));
                 });
+                
                 filterAndRenderTable();
             }
 
