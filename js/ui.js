@@ -444,21 +444,26 @@ export function renderTable(data, state, currentUser) {
             }
 
         } else if (key === 'mpg') {
-            // IMPORTANT: driver.mpg holds the *active* value now. 
-            // To show the *calculated* value specifically in this column (even if not active), we recalculate or use stored raw data if needed.
-            // However, usually we want to see the value associated with this column.
-            // Since driver.mpg is overwritten by the active source, we should recalculate the 'Samsara MPG' for display here if Stub is active.
+            // FIX: Respect manual edits when MPG is the active source.
+            // Only recalculate if we are in Stub mode (where driver.mpg holds the Stub value)
+            // and we need to display the underlying Samsara value for this column.
             
+            const source = driver.mpgSource || 'mpg';
             let displayVal = 0;
-            // Re-calculate pure Samsara MPG for display purposes
-            const dist = driver.distanceSource === 'samsaraDistance' ? driver.samsaraDistance : driver.milesWeek;
-            const gals = parseFloat(driver.gallons_fictive);
-            if (gals > 0 && dist > 0) displayVal = dist / gals;
+
+            if (source === 'mpg') {
+                // If Samsara is active, trust the driver.mpg value (it contains your manual edit)
+                displayVal = parseFloat(driver.mpg) || 0;
+            } else {
+                // If Stub is active, driver.mpg = Stub Value. We must recalculate Samsara MPG for this column.
+                const dist = driver.distanceSource === 'samsaraDistance' ? driver.samsaraDistance : driver.milesWeek;
+                const gals = parseFloat(driver.gallons_fictive);
+                if (gals > 0 && dist > 0) displayVal = dist / gals;
+            }
 
             content = displayVal.toFixed(1);
 
-            // FIX: Use default fallback for old locks
-            const source = driver.mpgSource || 'mpg';
+            // FIX: Add styling classes directly to the element classList
             if (source === 'mpg') cell.classList.add('mpg-source-active');
             else cell.classList.add('mpg-source-inactive');
             
