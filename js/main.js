@@ -982,6 +982,16 @@ userProfilesTableBody.addEventListener('click', async (e) => {
             return;
         }
 
+        if (e.target.closest('.view-report-btn')) {
+            e.stopPropagation();
+            const driverId = e.target.closest('.view-report-btn').dataset.driverId;
+            const driver = processedDriversForDate.find(d => d.id == driverId);
+            if (driver) {
+                ui.viewDriverReport(driver, settings, driversForDate);
+            }
+            return;
+        }
+
         if (e.target.closest('.unlock-btn')) {
             e.stopPropagation();
             const driver = processedDriversForDate.find(d => d.id == targetElement.dataset.driverId);
@@ -1529,7 +1539,19 @@ if (newUserRoleSelect && newUserAccessInput && addAccessBtn && accessTagsContain
             }
         });
     }
-    // --- END NEW ---
+    // --- Report Preview Modal Listeners ---
+    const reportModal = document.getElementById('report-preview-modal');
+    if (reportModal) {
+        document.getElementById('close-report-modal-btn').addEventListener('click', ui.closeReportModal);
+        reportModal.addEventListener('click', (e) => {
+            if (e.target === reportModal) ui.closeReportModal();
+        });
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && !reportModal.classList.contains('hidden')) {
+                ui.closeReportModal();
+            }
+        });
+    }
 }
 
 async function logout() {
