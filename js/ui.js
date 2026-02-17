@@ -387,10 +387,10 @@ export function renderTable(data, state, currentUser) {
                         tooltipText = `${activity.fullDate} - ${miles} ${mileLabel}. Status: ${activity.tooltipStatus}`;
                     }
         
-                    const overrideClass = activity.isChanged ? 'dispatch-override' : '';
+                    // Overlay class removed
         
                     activityBlocksHtml += `<div class="tooltip-container" data-tooltip="${tooltipText}">
-                                        <div class="weekly-activity-block ${colorClass} ${overrideClass}">${activity.day}</div>
+                                        <div class="weekly-activity-block ${colorClass}">${activity.day}</div>
                                     </div>`;
                 });
         
@@ -1762,10 +1762,10 @@ export function openActivityHistoryModal(driver, mileageData, settings, daysTake
                 tooltipText = `${activity.fullDate} - ${miles} ${mileLabel}. Status: ${activity.tooltipStatus}`;
             }
 
-            const overrideClass = activity.isChanged ? 'dispatch-override' : '';
+            // Overlay class removed
 
             activityBlocksHtml += `<div class="tooltip-container" data-tooltip="${tooltipText}">
-                                    <div class="weekly-activity-block ${colorClass} ${overrideClass}">${activity.day}</div>
+                                    <div class="weekly-activity-block ${colorClass}">${activity.day}</div>
                                 </div>`;
         });
 
