@@ -313,8 +313,12 @@ export function renderTable(data, state, currentUser) {
                     const isAdmin = currentUser && currentUser.role.trim() === 'Admin';
                     let contentHtml = `<div class="flex items-center justify-center gap-2 whitespace-nowrap">`;
 
+                    // VIEW BUTTON (Common for both)
+                    const viewBtn = `<button class="view-report-btn p-0 rounded-full hover:bg-slate-700 text-slate-400 hover:text-blue-400" data-driver-id="${driver.id}" title="View Report"><svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg></button>`;
+
                     if (driver.isLocked) {
                         // --- Locked View ---
+                        contentHtml += viewBtn;
                         contentHtml += `<button class="download-btn p-0 rounded-full hover:bg-slate-700" data-driver-id="${driver.id}" title="Download Automatic Report"><svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg></button>`;
                         
                         if (isAdmin) {
@@ -322,15 +326,14 @@ export function renderTable(data, state, currentUser) {
                         } else {
                             contentHtml += `<div class="p-0 text-blue-400" title="Week is locked"><svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clip-rule="evenodd" /></svg></div>`;
                         }
-                        // Note: No checkbox here for locked items
                     } else {
                         // --- Unlocked View ---
                         contentHtml += `<button class="copy-btn p-0 rounded-full hover:bg-slate-700" data-driver-id="${driver.id}" title="Copy Report Explanation"><svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg></button>
                                     <button class="edit-btn p-0 rounded-full hover:bg-slate-700" data-driver-id="${driver.id}" title="Edit & Download Report"><svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L15.232 5.232z"></path></svg></button>
+                                    ${viewBtn}
                                     <button class="download-btn p-0 rounded-full hover:bg-slate-700" data-driver-id="${driver.id}" title="Download Automatic Report"><svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg></button>
                                     <button class="lock-btn p-0 rounded-full hover:bg-slate-700 text-slate-400" data-driver-id="${driver.id}" title="Lock Week"><svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path d="M10 2a5 5 0 00-5 5v2a2 2 0 00-2 2v5a2 2 0 002 2h10a2 2 0 002-2v-5a2 2 0 00-2-2V7a5 5 0 00-5-5zM8.5 7V5.5a1.5 1.5 0 113 0V7h-3z" /></svg></button>`;
                         
-                        // Checkbox added to the right, only for unlocked drivers
                         if (isAdmin) {
                             contentHtml += `<input type="checkbox" class="driver-select-checkbox w-4 h-4 rounded bg-slate-800 border-slate-600 text-blue-600 focus:ring-blue-500 focus:ring-offset-slate-900 cursor-pointer ml-2" style="color-scheme: dark;" value="${driver.id}" title="Select Driver">`;
                         }
@@ -944,25 +947,18 @@ export function closeSettings() {
 }
 
 /**
- * Generates and triggers the download of a driver report image.
- * @param {Object} driverData The driver data for the report.
- * @param {Object} settings The application settings.
+ * Helper: Generates the SVG string for the driver report.
  */
-export function downloadDriverReport(driverData, settings, driversForDate) {
-    // --- NEW FIX: ---
+function generateReportSVG(driverData, settings, driversForDate) {
     // Check if the driver is locked AND has a 'lockedSettings' snapshot.
-    // If so, use those settings for this report. Otherwise, use the live 'settings'.
     const settingsToUse = (driverData.isLocked && driverData.lockedSettings) 
                            ? driverData.lockedSettings 
                            : settings;
-    // --- END FIX ---
 
     const formatNumber = (num) => (num % 1 === 0 ? num.toFixed(0) : num.toFixed(1));
     const formatCurrency = (num) => {
         const numericValue = parseFloat(num);
-        if (isNaN(numericValue)) {
-            return '$0';
-        }
+        if (isNaN(numericValue)) return '$0';
         const roundedNum = Math.round(numericValue);
         if (roundedNum === 0) return '$0';
         return `-$${Math.abs(roundedNum)}`;
@@ -973,27 +969,16 @@ export function downloadDriverReport(driverData, settings, driversForDate) {
         return '#475569';
     };
     
-    // If the driver is locked, the driverData object *is* the report (it has all the snapshot values).
-    // If it's NOT locked, we must calculate the report data live *using the correct settings*.
     const reportData = driverData.isLocked ? driverData : getDriverReportData(driverData, settingsToUse);
 
-
-    // Check for manually entered values and override the calculated ones.
     if (!driverData.isLocked) {
-        if (driverData.hasOwnProperty('escrowDeduct')) {
-            reportData.escrowDeduct = driverData.escrowDeduct;
-        }
-        if (driverData.hasOwnProperty('availableOffDays')) {
-            reportData.availableOffDays = driverData.availableOffDays;
-        }
+        if (driverData.hasOwnProperty('escrowDeduct')) reportData.escrowDeduct = driverData.escrowDeduct;
+        if (driverData.hasOwnProperty('availableOffDays')) reportData.availableOffDays = driverData.availableOffDays;
     }
 
-
     const reportDate = driverData.pay_date.split('T')[0];
-    const canvas = document.createElement('canvas');
-    const context = canvas.getContext('2d');
 
-    const getSpeedingBarTiers = (settings) => { // This function now receives settingsToUse
+    const getSpeedingBarTiers = (settings) => {
         const method = settings.speedingPenaltyMethod || 'percentile';
         switch (method) {
             case 'range':
@@ -1010,8 +995,6 @@ export function downloadDriverReport(driverData, settings, driversForDate) {
         }
     };
 
-    // Safely read values, defaulting to 0 if the bonus category doesn't exist (for old snapshots)
-    // All references to 'settings' are now 'settingsToUse'
     let performanceCards = [
         { title: 'Tenure', titleIcon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 002-2H5a2 2 0 00-2 2v12a2 2 0 002 2z', value: reportData.bonuses?.['Tenure']?.bonus || 0, barTiers: [0, ...settingsToUse.tenureMilestones.map((_, i) => settingsToUse.tenureMilestones.slice(0, i + 1).reduce((sum, m) => sum + m.bonus, 0))], type: 'tenure' },
         { title: 'Weeks Out', titleIcon: 'M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z', value: reportData.bonuses?.['Weeks Out']?.bonus || 0, barTiers: [...new Set(settingsToUse.weeksOutTiers.map(t => t.bonus))].sort((a, b) => a - b), type: 'weeksOut' },
@@ -1021,15 +1004,10 @@ export function downloadDriverReport(driverData, settings, driversForDate) {
         { title: 'Safety Score', titleIcon: 'M12 2L4 5v6c0 5.55 3.84 10.74 8 12 4.16-1.26 8-6.45 8-12V5l-8-3z', viewBox: '0 0 24 24', value: reportData.bonuses?.['Safety Score']?.bonus || 0, barTiers: [0, settingsToUse.safetyScoreBonus], type: 'safety' }
     ];
 
-    // --- Card Filtering Logic (using settingsToUse) ---
     performanceCards = performanceCards.filter(card => {
         let isEnabled;
-        // Use settingsToUse.enabledMetrics, which will be from the snapshot if locked, or live if not.
         const metricsToUse = settingsToUse.enabledMetrics;
-
         if (driverData.isLocked && !metricsToUse) {
-            // Case: Old snapshot (isLocked=true, but no enabledMetrics property)
-            // Only show the card if the data for it *actually exists* in the snapshot.
             if (card.type === 'tenure') isEnabled = reportData.bonuses?.['Tenure'] !== undefined;
             else if (card.type === 'weeksOut') isEnabled = reportData.bonuses?.['Weeks Out'] !== undefined;
             else if (card.type === 'fuel') isEnabled = reportData.bonuses?.['Fuel Efficiency'] !== undefined;
@@ -1038,8 +1016,6 @@ export function downloadDriverReport(driverData, settings, driversForDate) {
             else if (card.type === 'grossTarget') isEnabled = reportData.bonuses?.['Gross Target'] !== undefined;
             else isEnabled = true;
         } else if (metricsToUse) {
-            // Case: New snapshot (isLocked=true, has enabledMetrics) OR Not locked (isLocked=false)
-            // Use the enabledMetrics flags from settingsToUse
             if (card.type === 'tenure') isEnabled = metricsToUse.tenure;
             else if (card.type === 'weeksOut') isEnabled = metricsToUse.weeksOut;
             else if (card.type === 'fuel') isEnabled = metricsToUse.fuel;
@@ -1047,21 +1023,18 @@ export function downloadDriverReport(driverData, settings, driversForDate) {
             else if (card.type === 'grossTarget') isEnabled = metricsToUse.grossTarget;
             else isEnabled = true;
         } else {
-            // Fallback just in case
             isEnabled = true;
         }
         return isEnabled;
     });
 
+    // Create a temporary canvas context to measure text
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+    const width = 820;
 
     performanceCards.forEach(card => {
-        // Make sure bonuses object exists
-        if (!reportData.bonuses) {
-            card.combinedText = "Data unavailable for this metric.";
-            return;
-        }
-
-        // Map card type to bonus key
+        if (!reportData.bonuses) { card.combinedText = "Data unavailable."; return; }
         let bonusKey;
         if (card.type === 'weeksOut') bonusKey = 'Weeks Out';
         else if (card.type === 'tenure') bonusKey = 'Tenure';
@@ -1069,10 +1042,8 @@ export function downloadDriverReport(driverData, settings, driversForDate) {
         else if (card.type === 'grossTarget') bonusKey = 'Gross Target';
         else if (card.type === 'speeding') bonusKey = 'Speeding Penalty';
         else if (card.type === 'safety') bonusKey = 'Safety Score';
-
         const bonusData = reportData.bonuses[bonusKey];
 
-        // All references to 'settings' are now 'settingsToUse'
         switch (card.type) {
              case 'tenure':
                 const tenureBonus = reportData.bonuses['Tenure']?.bonus || 0;
@@ -1081,175 +1052,87 @@ export function downloadDriverReport(driverData, settings, driversForDate) {
                 if (tenureBonus > 0) { card.description = `Bonus for your ${driverData.tenure} weeks of loyalty.`; } else { card.description = `Currently at ${driverData.tenure} weeks, no bonus applied.`; }
                 card.infoText = nextTenure ? `Next bonus milestone at ${nextTenure.threshold} weeks.` : 'Max tenure bonus reached.';
                 break;
-                case 'grossTarget':
-                    const gross = driverData.gross || 0;
-                    const grossBonus = reportData.bonuses['Gross Target']?.bonus || 0;
+            case 'grossTarget':
+                const gross = driverData.gross || 0;
+                const grossBonus = reportData.bonuses['Gross Target']?.bonus || 0;
+                if (driverData.grossOverrideNote) {
+                    card.description = driverData.grossOverrideNote;
+                    card.infoText = '';
+                } else {
+                    card.description = `You grossed $${gross.toFixed(0)} this week.`;
+                    const sortedGrossTiers = (settingsToUse.grossTargetTiers || []).sort((a, b) => a.from - b.from);
+                    const nextGrossTier = sortedGrossTiers.find(t => t.bonus > grossBonus);
+                    if (nextGrossTier) { card.infoText = `Reach $${nextGrossTier.from} for a +${nextGrossTier.bonus.toFixed(1)}% bonus.`; } 
+                    else { card.infoText = 'Maximum gross target bonus reached.'; }
+                }
+                break;
+             case 'speeding': const speedingMethod = settingsToUse.speedingPenaltyMethod || 'percentile'; const numAlerts = driverData.speedingAlerts; const penaltyBonus = reportData.bonuses['Speeding Penalty']?.bonus || 0; switch (speedingMethod) { case 'perEvent': const minEvents = settingsToUse.speedingPerEventMinimum || 2; if (numAlerts < minEvents) { card.description = `${numAlerts} speeding ${numAlerts === 1 ? 'alert' : 'alerts'}. No penalty applied.`; card.infoText = `Stay below ${minEvents} alerts to avoid penalties.`; } else { const penaltyPer = settingsToUse.speedingPerEventPenalty || -1.0; const penalizedEvents = numAlerts - (minEvents - 1); card.description = `This week, ${penalizedEvents} of your ${numAlerts} alerts were penalized at ${penaltyPer}%.`; card.infoText = `To avoid deductions, keep alerts under ${minEvents}.`; } break; case 'range': if (penaltyBonus === 0) { card.description = `${numAlerts} speeding ${numAlerts === 1 ? 'alert' : 'alerts'}.`; card.infoText = 'Good job, no penalty applied for this range.'; } else { const sortedTiers = (settingsToUse.speedingRangeTiers || []).sort((a, b) => a.from - b.from); let activeTier = null; for (const tier of sortedTiers) { if (numAlerts >= tier.from && numAlerts <= (tier.to || Infinity)) { activeTier = tier; break; } } if (activeTier) { const toValue = activeTier.to; const rangeText = (toValue === null || typeof toValue === 'undefined' || toValue === Infinity) ? `${activeTier.from} or more` : `${activeTier.from}-${toValue}`; card.description = `To clear the penalty you got for ${numAlerts} alerts (${rangeText} tier), keep future alerts to 1 or fewer.`; card.infoText = ''; } else { card.description = `${numAlerts} speeding ${numAlerts === 1 ? 'alert' : 'alerts'}.`; card.infoText = 'No penalty applied for this range.'; } } break; case 'percentile': default: if (penaltyBonus === 0) { card.description = `${numAlerts} speeding ${numAlerts === 1 ? 'alert' : 'alerts'}.`; card.infoText = 'Good job, no speeding penalty applied.'; } else { card.description = `Your ${numAlerts} alerts mean you performed worse than ${driverData.speedingPercentile}% of drivers. To clear this penalty, keep future alerts to 1 or fewer.`; card.infoText = ''; } break; } break;
+             case 'fuel':
+                const currentMpg = parseFloat(driverData.mpg);
+                const fuelBonus = reportData.bonuses['Fuel Efficiency']?.bonus || 0;
+                if (fuelBonus >= 0) { card.description = `${currentMpg.toFixed(1)} MPG puts you better than ${driverData.mpgPercentile}% of drivers.`; } 
+                else { card.description = `${currentMpg.toFixed(1)} MPG puts you worse than ${100 - driverData.mpgPercentile}% of drivers.`; }
+                
+                if (reportData.bonuses['Fuel Efficiency']?.infoText) {
+                    card.infoText = reportData.bonuses['Fuel Efficiency'].infoText;
+                } else {
+                    const sortedTiers = [...settingsToUse.mpgPercentileTiers].sort((a, b) => a.threshold - b.threshold);
+                    let targetTier = null;
+                    if (fuelBonus < 0) { targetTier = sortedTiers.find(t => t.bonus >= 0); } 
+                    else { targetTier = sortedTiers.find(t => t.bonus > fuelBonus); }
                     
-                    // Use custom note if present, otherwise default explanation
-                    if (driverData.grossOverrideNote) {
-                        card.description = driverData.grossOverrideNote;
-                        card.infoText = ''; // Clear info text if manual note is used
-                    } else {
-                        card.description = `You grossed $${gross.toFixed(0)} this week.`;
-                        const sortedGrossTiers = (settingsToUse.grossTargetTiers || []).sort((a, b) => a.from - b.from);
-                        const nextGrossTier = sortedGrossTiers.find(t => t.bonus > grossBonus);
-                        if (nextGrossTier) {
-                            card.infoText = `Reach $${nextGrossTier.from} for a +${nextGrossTier.bonus.toFixed(1)}% bonus.`;
-                        } else {
-                            card.infoText = 'Maximum gross target bonus reached.';
-                        }
-                    }
-                    break;
-             case 'speeding': const speedingMethod = settingsToUse.speedingPenaltyMethod || 'percentile'; const numAlerts = driverData.speedingAlerts; const penaltyBonus = reportData.bonuses['Speeding Penalty']?.bonus || 0; switch (speedingMethod) { case 'perEvent': const minEvents = settingsToUse.speedingPerEventMinimum || 2; if (numAlerts < minEvents) { card.description = `${numAlerts} speeding ${numAlerts === 1 ? 'alert' : 'alerts'}. No penalty applied.`; card.infoText = `Stay below ${minEvents} alerts to avoid penalties.`; } else { const penaltyPer = settingsToUse.speedingPerEventPenalty || -1.0; const penalizedEvents = numAlerts - (minEvents - 1); card.description = `This week, ${penalizedEvents} of your ${numAlerts} alerts were penalized at ${penaltyPer}%.`; card.infoText = `To avoid deductions, keep alerts under ${minEvents}.`; } break; case 'range': if (penaltyBonus === 0) { card.description = `${numAlerts} speeding ${numAlerts === 1 ? 'alert' : 'alerts'}.`; card.infoText = 'Good job, no penalty applied for this range.'; } else { const sortedTiers = (settingsToUse.speedingRangeTiers || []).sort((a, b) => a.from - b.from); let activeTier = null; for (const tier of sortedTiers) { if (numAlerts >= tier.from && numAlerts <= (tier.to || Infinity)) { activeTier = tier; break; } } if (activeTier) { const toValue = activeTier.to;
-                const rangeText = (toValue === null || typeof toValue === 'undefined' || toValue === Infinity) ? `${activeTier.from} or more` : `${activeTier.from}-${toValue}`; card.description = `To clear the penalty you got for ${numAlerts} alerts (${rangeText} tier), keep future alerts to 1 or fewer.`; card.infoText = ''; } else { card.description = `${numAlerts} speeding ${numAlerts === 1 ? 'alert' : 'alerts'}.`; card.infoText = 'No penalty applied for this range.'; } } break; case 'percentile': default: if (penaltyBonus === 0) { card.description = `${numAlerts} speeding ${numAlerts === 1 ? 'alert' : 'alerts'}.`; card.infoText = 'Good job, no speeding penalty applied.'; } else { card.description = `Your ${numAlerts} alerts mean you performed worse than ${driverData.speedingPercentile}% of drivers. To clear this penalty, keep future alerts to 1 or fewer.`; card.infoText = ''; } break; } break;
-                case 'fuel':
-                    const currentMpg = parseFloat(driverData.mpg);
-                    const fuelBonus = reportData.bonuses['Fuel Efficiency']?.bonus || 0;
-                    
-                    // Set the description (this part is safe, it uses saved data)
-                    if (fuelBonus >= 0) {
-                        card.description = `${currentMpg.toFixed(1)} MPG puts you better than ${driverData.mpgPercentile}% of drivers.`;
-                    } else {
-                        card.description = `${currentMpg.toFixed(1)} MPG puts you worse than ${100 - driverData.mpgPercentile}% of drivers.`;
-                    }
-   
-                    // --- START: InfoText Fix ---
-                    // Check if infoText was pre-calculated and saved in the snapshot
-                    if (reportData.bonuses['Fuel Efficiency']?.infoText) {
-                        // 1. Use the saved text from the snapshot
-                        card.infoText = reportData.bonuses['Fuel Efficiency'].infoText;
-                    } else {
-                        // 2. Fallback: Calculate live (for non-locked downloads)
-                        const currentPercentile = driverData.mpgPercentile;
-                        const sortedTiers = [...settingsToUse.mpgPercentileTiers].sort((a, b) => a.threshold - b.threshold);
-                        let infoText = '';
-                        let targetTier = null;
-                        if (fuelBonus < 0) {
-                            targetTier = sortedTiers.find(t => t.bonus >= 0);
-                        } else {
-                            targetTier = sortedTiers.find(t => t.bonus > fuelBonus);
-                        }
-   
-                        if (targetTier && driversForDate && driversForDate.length > 0) {
-                            const targetPercentile = targetTier.threshold;
-                            const allMpgValues = driversForDate.map(d => parseFloat(d.mpg)).filter(mpg => mpg > 0).sort((a, b) => a - b);
-                            let targetMpg = 0;
-   
-                            if (allMpgValues.length > 1) {
-                                const targetIndex = Math.ceil((targetPercentile / 100) * (allMpgValues.length - 1));
-                                targetMpg = allMpgValues[targetIndex];
-                            } else if (allMpgValues.length === 1) {
-                               targetMpg = allMpgValues[0];
-                            }
-   
-                            if (targetMpg > 0 && targetMpg > currentMpg) {
-                                if (fuelBonus < 0) {
-                                    infoText = `Reach ${targetMpg.toFixed(1)} MPG to remove the penalty.`;
-                                } else {
-                                    infoText = `Reach ${targetMpg.toFixed(1)} MPG for a +${targetTier.bonus.toFixed(1)}% bonus.`;
-                                }
-                            } else {
-                                infoText = 'Keep up the great work!';
-                            }
-                        } else if (targetTier) {
-                            infoText = `Reach ${targetTier.threshold} percentile for next bonus.`;
-                        } else {
-                            infoText = 'Maximum fuel bonus reached.';
-                        }
-                        card.infoText = infoText;
-                    }
-                    // --- END: InfoText Fix ---
-   
-                    card.combinedText = `${card.description} ${card.infoText}`;
-                    break;
+                    if (targetTier) card.infoText = `Reach ${targetTier.threshold} percentile for next bonus.`;
+                    else card.infoText = 'Maximum fuel bonus reached.';
+                }
+                card.combinedText = `${card.description} ${card.infoText}`;
+                break;
              case 'safety': const bonusAwarded = (reportData.bonuses['Safety Score']?.bonus || 0) > 0; const scoreMet = driverData.safetyScore >= settingsToUse.safetyScoreThreshold; const milesMet = driverData.milesWeek >= settingsToUse.safetyScoreMileageThreshold; const hasSpeeding = driverData.speedingAlerts > 0; if (bonusAwarded) { card.description = 'Good score and miles requirement met.'; card.infoText = 'Bonus requirements met.'; } else if (!scoreMet) { card.description = `Score is ${driverData.safetyScore}%. Need ${settingsToUse.safetyScoreThreshold}% to qualify.`; card.infoText = `Improve score to earn the bonus.`; } else if (!milesMet) { card.description = `To qualify for the safety bonus, meet the ${settingsToUse.safetyScoreMileageThreshold} weekly miles criteria.`; card.infoText = `Drive more to unlock this bonus.`; } else if (hasSpeeding && settingsToUse.safetyBonusForfeitedOnSpeeding) { card.description = `Bonus forfeited due to ${driverData.speedingAlerts} speeding alert(s).`; card.infoText = `Needs 0 speeding alerts to unlock +${settingsToUse.safetyScoreBonus.toFixed(1)}%`; } else { card.description = 'Safety bonus not awarded this week.'; card.infoText = 'Check requirements for details.'; } break;
              case 'weeksOut':
                 const weeksOutValue = driverData.weeksOut || 0;
                 const weeksOutBonus = reportData.bonuses['Weeks Out']?.bonus || 0;
                 const nextWeeksOutTier = settingsToUse.weeksOutTiers.find(t => t.bonus > weeksOutBonus);
-
                 if (settingsToUse.weeksOutMethod === 'dailyAccrual') {
                     const totalDays = Math.round(weeksOutValue * 7);
                     const wholeWeeks = Math.floor(totalDays / 7);
                     const remainingDays = totalDays % 7;
-                    
                     let streakText = `${wholeWeeks} week${wholeWeeks !== 1 ? 's' : ''}`;
-                    if (remainingDays > 0) {
-                        streakText += ` and ${remainingDays} day${remainingDays !== 1 ? 's' : ''}`;
-                    }
-
-                    if (weeksOutBonus > 0) {
-                        card.description = `Bonus for your continuous streak of ${Math.floor(weeksOutValue)} weeks.`;
-                    } else {
-                        card.description = `Your current streak is ${streakText}.`;
-                    }
+                    if (remainingDays > 0) streakText += ` and ${remainingDays} day${remainingDays !== 1 ? 's' : ''}`;
+                    if (weeksOutBonus > 0) { card.description = `Bonus for your continuous streak of ${Math.floor(weeksOutValue)} weeks.`; } 
+                    else { card.description = `Your current streak is ${streakText}.`; }
                     card.infoText = nextWeeksOutTier ? `Stay out for ${nextWeeksOutTier.threshold} weeks to earn a +${nextWeeksOutTier.bonus.toFixed(1)}% bonus.` : 'Max weeks out bonus reached.';
-
-                } else { // fullWeeksOnly
+                } else {
                     card.description = weeksOutBonus > 0 ? `Bonus for ${weeksOutValue} consecutive weeks out.` : `Currently at ${weeksOutValue} weeks out, no bonus.`;
                     card.infoText = nextWeeksOutTier ? `Stay out for ${nextWeeksOutTier.threshold} weeks for a +${nextWeeksOutTier.bonus.toFixed(1)}% bonus.` : 'Max weeks out bonus reached.';
                 }
                 break;
-            }
+        }
 
-            // --- NEW: Handle "Ignored" State with Potential Value ---
-            if (bonusData && bonusData.ignored) {
-                const potential = bonusData.potentialBonus || 0;
-                let suffix = '';
-                
-                if (potential > 0) suffix = ' (no bonus applied)';
-                else if (potential < 0) suffix = ' (no penalty applied)';
-                
-                // If it's ignored, we wipe the infoText (like "Reach X to get bonus")
-                // because it doesn't make sense if the metric is off.
-                card.infoText = ''; 
-                
-                // Append the suffix to the description
-                card.description = (card.description || '') + suffix;
-            }
-            // -------------------------------------------------------
-    
-            if (card.type === 'grossTarget') {
-                card.combinedText = card.description; // Only use the description for Gross Target
-            } else {
-                card.combinedText = card.combinedText || `${card.description} ${card.infoText}`;
-            }
-        });
-    
-    const width = 820;
+        if (bonusData && bonusData.ignored) {
+            const potential = bonusData.potentialBonus || 0;
+            let suffix = potential > 0 ? ' (no bonus applied)' : (potential < 0 ? ' (no penalty applied)' : '');
+            card.infoText = ''; 
+            card.description = (card.description || '') + suffix;
+        }
+        if (card.type === 'grossTarget') card.combinedText = card.description;
+        else card.combinedText = card.combinedText || `${card.description} ${card.infoText}`;
+    });
 
-    // --- RENAME: "Time Off" to "Down Time" ---
-    // All references to 'settings' are now 'settingsToUse'
-    const availableDays = reportData.availableOffDays; // Use the value from the report
+    const availableDays = reportData.availableOffDays; 
     const daysTaken = driverData.offDays || 0;
-    const escrowDeduction = reportData.escrowDeduct; // Use the value from the report
+    const escrowDeduction = reportData.escrowDeduct;
     const escrowDeductionAmount = settingsToUse.escrowDeductionAmount || 1;
-    const excessDays = escrowDeduction > 0 ? (escrowDeduction / escrowDeductionAmount) : 0;
     const startAfterWeeks = settingsToUse.timeOffStartAfterWeeks || 3;
 
-    let timeOffCard = {
-       title: 'Down Time & Escrow',
-       titleIcon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z',
-       description: '',
-       value: escrowDeduction > 0 ? -escrowDeduction : 0, // Ensure value is negative for deduction
-       statusBarHtml: ''
-    };
+    let timeOffCard = { title: 'Down Time & Escrow', titleIcon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z', description: '', value: escrowDeduction > 0 ? -escrowDeduction : 0, statusBarHtml: '' };
    
     if (daysTaken > availableDays) {
-        // Case 1: Driver took MORE days than they earned.
         const excessDays = daysTaken - availableDays;
-        if (escrowDeduction > 0) {
-            timeOffCard.description = `You used ${daysTaken} days, which is ${excessDays} more than your ${availableDays} earned days. Your escrow has been deducted.`;
-        } else {
-            // This is the case from your image.
-            timeOffCard.description = `You used ${daysTaken} days off, which is more then your ${availableDays} earned days. Please track your balance, as deductions may apply in the future.`;
-        }
+        if (escrowDeduction > 0) { timeOffCard.description = `You used ${daysTaken} days, which is ${excessDays} more than your ${availableDays} earned days. Your escrow has been deducted.`; } 
+        else { timeOffCard.description = `You used ${daysTaken} days off, which is more then your ${availableDays} earned days. Please track your balance, as deductions may apply in the future.`; }
     } else if (daysTaken > 0) {
-        // Case 2: Driver took days, but had enough.
         const remainingDays = availableDays - daysTaken;
         timeOffCard.description = `You have used ${daysTaken} of your ${availableDays} earned down time days. You have ${remainingDays} day(s) remaining.`;
     } else {
-        // Case 3: Driver took 0 days off.
         const weeksOutVal = driverData.weeksOut || 0;
         if (weeksOutVal >= startAfterWeeks) {
              const weeksSinceLastDay = (weeksOutVal - startAfterWeeks) % (settingsToUse.timeOffWeeksPerDay || 1);
@@ -1261,28 +1144,18 @@ export function downloadDriverReport(driverData, settings, driversForDate) {
                  const weeksNeeded = Math.floor(daysNeeded / 7);
                  const remainingDaysNeeded = daysNeeded % 7;
                  let neededText = `${weeksNeeded} week${weeksNeeded !== 1 ? 's' : ''}`;
-                 if(remainingDaysNeeded > 0) {
-                    neededText += ` and ${remainingDaysNeeded} day${remainingDaysNeeded !== 1 ? 's' : ''}`;
-                 }
+                 if(remainingDaysNeeded > 0) neededText += ` and ${remainingDaysNeeded} day${remainingDaysNeeded !== 1 ? 's' : ''}`;
                  timeOffCard.description = `You need ${neededText} more to start earning free off days.`;
-            } else {
-                 timeOffCard.description = `You need ${Math.ceil(startAfterWeeks - weeksOutVal)} more week(s) out to start earning free off days.`;
-            }
+            } else { timeOffCard.description = `You need ${Math.ceil(startAfterWeeks - weeksOutVal)} more week(s) out to start earning free off days.`; }
         }
     }
 
-    // --- DYNAMIC Y-POSITIONING ---
     const timeOffCardYBase = 200 + performanceCards.length * 90;
-    
-    // --- DYNAMIC HEIGHT CALCULATION ---
     const timeOffCardY = timeOffCardYBase - 20;
-    const descriptionY = timeOffCardY + 40 + 15; // This is the Y of the description text
-    const height = descriptionY + 40; // This is our new dynamic height
-    
-    // --- (Status Bar SVG logic remains identical) ---
+    const descriptionY = timeOffCardY + 40 + 15;
+    const height = descriptionY + 40;
     const statusBarY = timeOffCardYBase - 12;
-    let dayBlocksHtml = '';
-    let outlineHtml = '';
+    let dayBlocksHtml = '', outlineHtml = '';
     const greenShades = ['#375D4A', '#44715A', '#52856A', '#619A7B', '#70AC8D'];
     const redShades = ['#A35B5B', '#914E4E', '#7D4141', '#6A3434', '#582A2A'];
 
@@ -1290,48 +1163,20 @@ export function downloadDriverReport(driverData, settings, driversForDate) {
     if (totalSlots > 0) {
         const blockWidth = (370 - (totalSlots - 1) * 4) / totalSlots;
         let currentX = 320;
-       
         for (let i = 0; i < totalSlots; i++) {
-            let color;
-            if (i < availableDays) {
-                color = greenShades[Math.min(i, greenShades.length - 1)]; // Earned days
-            } else {
-                color = redShades[Math.min(i - availableDays, redShades.length - 1)];
-            }
-           
-            dayBlocksHtml += `<g>
-                <rect x="${currentX}" y="${statusBarY}" width="${blockWidth}" height="24" fill="${color}" />
-                <text x="${currentX + blockWidth / 2}" y="${statusBarY + 12}" dominant-baseline="middle" text-anchor="middle" font-size="11" font-weight="600" fill="#e2e8f0">${i + 1}</text>
-            </g>`;
+            let color = (i < availableDays) ? greenShades[Math.min(i, greenShades.length - 1)] : redShades[Math.min(i - availableDays, redShades.length - 1)];
+            dayBlocksHtml += `<g><rect x="${currentX}" y="${statusBarY}" width="${blockWidth}" height="24" fill="${color}" /><text x="${currentX + blockWidth / 2}" y="${statusBarY + 12}" dominant-baseline="middle" text-anchor="middle" font-size="11" font-weight="600" fill="#e2e8f0">${i + 1}</text></g>`;
             currentX += blockWidth + 4;
         }
- 
-        if (daysTaken > 0) {
-            const outlineWidth = (daysTaken * blockWidth) + ((daysTaken - 1) * 4);
-            outlineHtml = `<rect x="318" y="${statusBarY - 2}" width="${outlineWidth + 4}" height="28" fill="none" stroke="#e2e8f0" stroke-width="1.5" />`;
-        }
-    } else { // Case for 0 available and 0 taken
-        dayBlocksHtml = `<g>
-                <rect x="320" y="${statusBarY}" width="370" height="24" fill="#334155" />
-                <text x="${320 + 370 / 2}" y="${statusBarY + 12}" dominant-baseline="middle" text-anchor="middle" font-size="11" font-weight="600" fill="#cbd5e1">0 Days Available</text>
-            </g>`;
+        if (daysTaken > 0) { const outlineWidth = (daysTaken * blockWidth) + ((daysTaken - 1) * 4); outlineHtml = `<rect x="318" y="${statusBarY - 2}" width="${outlineWidth + 4}" height="28" fill="none" stroke="#e2e8f0" stroke-width="1.5" />`; }
+    } else {
+        dayBlocksHtml = `<g><rect x="320" y="${statusBarY}" width="370" height="24" fill="#334155" /><text x="${320 + 370 / 2}" y="${statusBarY + 12}" dominant-baseline="middle" text-anchor="middle" font-size="11" font-weight="600" fill="#cbd5e1">0 Days Available</text></g>`;
     }
- 
     timeOffCard.statusBarHtml = dayBlocksHtml + outlineHtml;
 
-    const captureContainer = document.createElement('div');
-    captureContainer.style.position = 'absolute';
-    captureContainer.style.left = '-9999px';
-    captureContainer.style.width = '820px';
-    captureContainer.style.fontFamily = "'Inter', sans-serif";
-    
-    // --- FINAL VALUES: Use the values from reportData, which is now the correct object (locked or live) ---
-    // --- Use default (|| 0) to handle old snapshots ---
     const totalBonuses = reportData.totalPositiveBonuses || 0;
     const totalPenalties = reportData.totalPenalties || 0;
-    const finalTpog = reportData.totalTpog || settingsToUse.baseRate || 0; // Default to baseRate if tpog is missing
-    // ---
-    
+    const finalTpog = reportData.totalTpog || settingsToUse.baseRate || 0;
     const brightGreenColor = '#74d99b', brightRedColor = '#c56060';
 
     const svg = `
@@ -1354,87 +1199,38 @@ export function downloadDriverReport(driverData, settings, driversForDate) {
                 const barHtml = card.barTiers ? (() => {
                     let activeTierValue = card.value;
                     if (card.type === 'tenure') { activeTierValue = (settingsToUse.tenureMilestones || []).filter(m => driverData.tenure >= m.threshold).reduce((sum, m) => sum + m.bonus, 0); }
-
                     const isObjectTiers = card.barTiers.length > 0 && typeof card.barTiers[0] === 'object';
-                    
                     let closestTier;
-                    if (isObjectTiers) {
-                        closestTier = card.barTiers.find(t => t.bonus === activeTierValue);
-                    } else {
-                        closestTier = card.barTiers.reduce((prev, curr) => (Math.abs(curr - activeTierValue) < Math.abs(prev - activeTierValue) ? curr : prev));
-                    }
-
+                    if (isObjectTiers) { closestTier = card.barTiers.find(t => t.bonus === activeTierValue); } 
+                    else { closestTier = card.barTiers.reduce((prev, curr) => (Math.abs(curr - activeTierValue) < Math.abs(prev - activeTierValue) ? curr : prev)); }
                     const numTiers = card.barTiers.length;
                     let segmentWidth = 370;
                     if (numTiers > 1) { segmentWidth = (370 - (4 * (numTiers - 1))) / numTiers; }
                     let currentX = 320;
-                    
                     let tiersHtml = '';
-
                     card.barTiers.forEach(tier => {
                         let isActive, bonusValue, textContent;
-                        
-                        if (isObjectTiers) {
-                            // --- Logic for Gross Target (Object Tiers) ---
-                            isActive = tier === closestTier;
-                            bonusValue = tier.bonus;
-                            
-                            // 1. Create the Bonus % text (centered)
-                            const bonusText = `${bonusValue > 0 ? '+' : ''}${formatNumber(bonusValue)}%`;
-                            textContent = `<text x="${currentX + segmentWidth / 2}" y="${y_base}" dominant-baseline="middle" text-anchor="middle" font-size="11" font-weight="600" fill="${(bonusValue === 0) ? '#cbd5e1' : '#e2e8f0'}">${bonusText}</text>`;
-                            
-                            // 2. $ amount label is NO LONGER generated here
-
-                        } else {
-                            // --- Logic for all other cards (Number Tiers) ---
-                            isActive = tier === closestTier;
-                            bonusValue = tier;
-                            // Original single-line text
-                            textContent = `<text x="${currentX + segmentWidth / 2}" y="${y_base}" dominant-baseline="middle" text-anchor="middle" font-size="11" font-weight="600" fill="${(bonusValue === 0) ? '#cbd5e1' : '#e2e8f0'}">${bonusValue > 0 ? '+' : ''}${formatNumber(bonusValue)}%</text>`;
-                        }
-
-                        tiersHtml += `<g>
-                            ${isActive ? `<rect x="${currentX - 2}" y="${y_base - 14}" width="${segmentWidth + 4}" height="28" fill="none" stroke="#e2e8f0" stroke-width="1.5" />` : ''}
-                            <rect x="${currentX}" y="${y_base - 12}" width="${segmentWidth}" height="24" fill="${getTierBgColor(bonusValue)}" />
-                            ${textContent}
-                        </g>`;
-                        
+                        if (isObjectTiers) { isActive = tier === closestTier; bonusValue = tier.bonus; const bonusText = `${bonusValue > 0 ? '+' : ''}${formatNumber(bonusValue)}%`; textContent = `<text x="${currentX + segmentWidth / 2}" y="${y_base}" dominant-baseline="middle" text-anchor="middle" font-size="11" font-weight="600" fill="${(bonusValue === 0) ? '#cbd5e1' : '#e2e8f0'}">${bonusText}</text>`; } 
+                        else { isActive = tier === closestTier; bonusValue = tier; textContent = `<text x="${currentX + segmentWidth / 2}" y="${y_base}" dominant-baseline="middle" text-anchor="middle" font-size="11" font-weight="600" fill="${(bonusValue === 0) ? '#cbd5e1' : '#e2e8f0'}">${bonusValue > 0 ? '+' : ''}${formatNumber(bonusValue)}%</text>`; }
+                        tiersHtml += `<g>${isActive ? `<rect x="${currentX - 2}" y="${y_base - 14}" width="${segmentWidth + 4}" height="28" fill="none" stroke="#e2e8f0" stroke-width="1.5" />` : ''}<rect x="${currentX}" y="${y_base - 12}" width="${segmentWidth}" height="24" fill="${getTierBgColor(bonusValue)}" />${textContent}</g>`;
                         currentX += segmentWidth + 4;
                     });
-                    
-                    return tiersHtml; // Return ONLY the bars
+                    return tiersHtml;
                 })() : '';
-                // --- Generate bar labels ONLY for Gross Target ---
                 let barLabelsHtml = '';
                 if (card.type === 'grossTarget' && card.barTiers) {
                     const numTiers = card.barTiers.length;
                     let segmentWidth = 370;
                     if (numTiers > 1) { segmentWidth = (370 - (4 * (numTiers - 1))) / numTiers; }
                     let currentX = 320;
-                    
-                    card.barTiers.forEach(tier => {
-                        const fromText = `$${tier.from}`;
-                        // This new Y position places the labels just below the bars
-                        barLabelsHtml += `<text x="${currentX + segmentWidth / 2}" y="${y_base + 25}" dominant-baseline="middle" text-anchor="middle" font-size="9" font-weight="400" fill="#94a3b8" font-style="italic">${fromText}</text>`;
-                        currentX += segmentWidth + 4;
-                    });
+                    card.barTiers.forEach(tier => { const fromText = `$${tier.from}`; barLabelsHtml += `<text x="${currentX + segmentWidth / 2}" y="${y_base + 25}" dominant-baseline="middle" text-anchor="middle" font-size="9" font-weight="400" fill="#94a3b8" font-style="italic">${fromText}</text>`; currentX += segmentWidth + 4; });
                 }
                 
-                // --- Generate description text (handles line breaks) ---
-                // FIX: Force combinedText to be a string to prevent .split() crash on edited data
                 context.font = '400 10px Inter'; 
                 const words = String(card.combinedText || '').split(' '); 
                 let currentLine = words[0]; 
                 const lines = []; 
-                for (let i = 1; i < words.length; i++) { 
-                    const testLine = `${currentLine} ${words[i]}`; 
-                    if (context.measureText(testLine).width > (width - 80)) { 
-                        lines.push(currentLine); 
-                        currentLine = words[i]; 
-                    } else { 
-                        currentLine = testLine; 
-                    } 
-                } 
+                for (let i = 1; i < words.length; i++) { const testLine = `${currentLine} ${words[i]}`; if (context.measureText(testLine).width > (width - 80)) { lines.push(currentLine); currentLine = words[i]; } else { currentLine = testLine; } } 
                 lines.push(currentLine); 
                 const descriptionHtml = lines.map((line, i) => `<tspan x="60" dy="${i === 0 ? 0 : '1.4em'}">${line}</tspan>`).join('');
 
@@ -1455,9 +1251,22 @@ export function downloadDriverReport(driverData, settings, driversForDate) {
             </g>
         </svg>
     `;
-    
+    return svg;
+}
+
+/**
+ * Downloads the driver report as a PNG.
+ */
+export function downloadDriverReport(driverData, settings, driversForDate) {
+    const svg = generateReportSVG(driverData, settings, driversForDate);
+    const captureContainer = document.createElement('div');
+    captureContainer.style.position = 'absolute';
+    captureContainer.style.left = '-9999px';
+    captureContainer.style.width = '820px';
+    captureContainer.style.fontFamily = "'Inter', sans-serif";
     captureContainer.innerHTML = svg;
     document.body.appendChild(captureContainer);
+    
     html2canvas(captureContainer, { backgroundColor: null, scale: 2, useCORS: true }).then(canvas => {
         const a = document.createElement('a');
         a.href = canvas.toDataURL('image/png');
@@ -1470,6 +1279,24 @@ export function downloadDriverReport(driverData, settings, driversForDate) {
             document.body.removeChild(captureContainer);
         }
     });
+}
+
+/**
+ * Shows the driver report in a modal popup.
+ */
+export function viewDriverReport(driverData, settings, driversForDate) {
+    const svg = generateReportSVG(driverData, settings, driversForDate);
+    const modal = document.getElementById('report-preview-modal');
+    const content = document.getElementById('report-preview-content');
+    content.innerHTML = svg;
+    modal.classList.remove('hidden');
+}
+
+/**
+ * Closes the report preview modal.
+ */
+export function closeReportModal() {
+    document.getElementById('report-preview-modal').classList.add('hidden');
 }
 
 
