@@ -888,5 +888,16 @@
             </div>
         </div>
     </div>
+    <div id="report-preview-modal" class="fixed inset-0 bg-black/90 z-[3000] hidden flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="relative bg-transparent rounded-xl max-w-[850px] w-full flex flex-col items-center">
+            <button id="close-report-modal-btn" class="absolute -top-10 -right-2 text-slate-400 hover:text-white transition-colors p-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+            <div id="report-preview-content" class="overflow-auto max-h-[90vh] rounded-lg shadow-2xl border border-slate-700/50">
+                </div>
+        </div>
+    </div>
     </body>
 </html>
