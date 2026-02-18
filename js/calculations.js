@@ -481,12 +481,135 @@ export function updateSettingsFromUI() {
  * @param {Array<Object>} allDrivers List of all drivers (for Weeks Out calc).
  * @returns {Array<Object>} The processed driver data with calculated fields.
  */
-export function processDriverDataForDate(driversForDate, mileageIndex, settings, safetyIndex, overriddenDistances, daysTakenIndex, dispatcherOverrides, allDrivers, mpgOverrides) {
+// Helper to calculate median safely
+function getMedian(values) {
+    if (values.length === 0) return 0;
+    // Create a copy to avoid sorting the original array references
+    const sorted = [...values].sort((a, b) => a - b);
+    const half = Math.floor(sorted.length / 2);
+    
+    if (sorted.length % 2) {
+        return sorted[half]; // Odd length
+    }
+    return (sorted[half - 1] + sorted[half]) / 2.0; // Even length
+}
+
+export function processDriverDataForDate(driversForDate, mileageIndex, settings, safetyIndex, overriddenDistances, daysTakenIndex, dispatcherOverrides, allDrivers, mpgOverrides, allLockedData = {}) {
     if (driversForDate.length > 0) {
         const formatDate = (date) => date.toISOString().split('T')[0];
         const selectedDateStr = driversForDate[0].pay_date.split('T')[0];
 
        driversForDate.forEach(driver => {
+        // --- Underperformer Logic (Tiered Sums AND Fixed Median) ---
+        // 1. LOCKED WEEKS ONLY
+        // 2. TPOG ONLY
+        // 3. EXCLUDE INACTIVE
+        // 4. USE SNAPSHOT DATA (Important!)
+        if (allDrivers && allLockedData) {
+            
+            // Get all records for this driver (by name, for TPOG)
+            const driverHistory = allDrivers.filter(d => d.name === driver.name && d.contract_type === 'TPOG');
+            
+            const validHistorySnapshots = [];
+
+            // Iterate through history to find valid locked snapshots
+            driverHistory.forEach(d => {
+                const pDateStr = d.pay_date.split('T')[0];
+                
+                // Exclude future weeks
+                if (pDateStr > selectedDateStr) return;
+
+                const lockedJSON = allLockedData[`${d.id}_${pDateStr}`];
+                
+                if (lockedJSON) {
+                    try {
+                        const snapshot = JSON.parse(lockedJSON);
+                        
+                        // Check for fully inactive status
+                        if (snapshot.weeklyActivity && Array.isArray(snapshot.weeklyActivity)) {
+                            const isFullyInactive = snapshot.weeklyActivity.every(day => {
+                                const status = (day.statuses || '').toUpperCase();
+                                return status.includes('NOT_STARTED') || status.includes('CONTRACT_ENDED');
+                            });
+                            
+                            // Only add if active
+                            if (!isFullyInactive) {
+                                validHistorySnapshots.push({
+                                    pay_date: pDateStr,
+                                    gross: parseFloat(snapshot.gross) || 0,
+                                    stubMiles: parseFloat(snapshot.stubMiles) || 0
+                                });
+                            }
+                        }
+                    } catch (e) {
+                        console.warn("Error parsing locked data:", e);
+                    }
+                }
+            });
+
+            const count = validHistorySnapshots.length;
+
+            // 3. Minimum 4 valid locked weeks required
+            if (count >= 4) {
+                // Sort descending by date
+                validHistorySnapshots.sort((a, b) => new Date(b.pay_date) - new Date(a.pay_date));
+
+                // Determine Thresholds
+                let weeksToCheck = 0;
+                let minGrossSum = 0;
+                let minMilesSum = 0;
+
+                if (count >= 6) {
+                    weeksToCheck = 6;
+                    minGrossSum = 30000;
+                    minMilesSum = 12000;
+                } else if (count === 5) {
+                    weeksToCheck = 5;
+                    minGrossSum = 25000;
+                    minMilesSum = 10000;
+                } else { 
+                    weeksToCheck = 4;
+                    minGrossSum = 20000;
+                    minMilesSum = 8000;
+                }
+
+                // Slice the SNAPSHOTS
+                const recentHistory = validHistorySnapshots.slice(0, weeksToCheck);
+                
+                // --- Condition A: Sum Check (Using Snapshot Values) ---
+                const sumGross = recentHistory.reduce((sum, d) => sum + d.gross, 0);
+                const sumMiles = recentHistory.reduce((sum, d) => sum + d.stubMiles, 0);
+                
+                const isSumFailing = (sumGross < minGrossSum || sumMiles < minMilesSum);
+
+                // --- Condition B: Median Check (Using Snapshot Values) ---
+                const grossValues = recentHistory.map(d => d.gross);
+                const milesValues = recentHistory.map(d => d.stubMiles);
+                
+                const medianGross = getMedian(grossValues);
+                const medianMiles = getMedian(milesValues);
+
+                const isMedianFailing = (medianGross <= 6000 || medianMiles <= 2500);
+
+                // --- Final Decision ---
+                if (isSumFailing && isMedianFailing) {
+                    driver.isUnderperformer = true;
+                    let reasons = [];
+                    
+                    reasons.push(`(Last ${weeksToCheck} wks)`);
+                    
+                    if (sumGross < minGrossSum) reasons.push(`Sum Gross $${Math.round(sumGross)} < $${minGrossSum}`);
+                    if (sumMiles < minMilesSum) reasons.push(`Sum Miles ${Math.round(sumMiles)} < ${minMilesSum}`);
+                    
+                    if (medianGross <= 6000) reasons.push(`Median Gross $${Math.round(medianGross)} <= $6000`);
+                    if (medianMiles <= 2500) reasons.push(`Median Miles ${Math.round(medianMiles)} <= 2500`);
+
+                    driver.underperformerReason = `Underperformer:\n` + reasons.join('\n');
+                }
+            }
+        }
+        // ----------------------------
+
         const performanceDate = new Date(selectedDateStr + 'T12:00:00Z');
         if (driver.pay_delayWks === 2) {
             performanceDate.setUTCDate(performanceDate.getUTCDate() - 7);
