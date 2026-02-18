@@ -200,6 +200,17 @@ export function renderTable(data, state, currentUser) {
             let content = driver[key];
             if (key === 'name') {
                 let icons = '<div class="flex items-center gap-1.5">';
+                
+                // --- Underperformer Flag ---
+                if (driver.isUnderperformer) {
+                    icons += `<div class="tooltip-container" data-tooltip="${driver.underperformerReason}">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-yellow-500" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M3 6a3 3 0 013-3h10a1 1 0 01.8 1.6L14.25 8l2.55 3.4A1 1 0 0116 13H6a1 1 0 00-1 1v3a1 1 0 11-2 0V6z" clip-rule="evenodd" />
+                        </svg>
+                    </div>`;
+                }
+                // ---------------------------
+
                 // FIX: Check the flags for source data existence, not the edited values
                 if (driver.hasPrologsData) {
                     icons += '<div class="tooltip-container" data-tooltip="ProLogs data available"><div class="data-indicator indicator-p">P</div></div>';
@@ -407,7 +418,12 @@ export function renderTable(data, state, currentUser) {
                 let noteHtml = '';
                 if (driver.weeklyNote) {
                     // We must escape the note content to safely use it in an HTML attribute
-                    const escapedNote = driver.weeklyNote.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+                    // Also replacing newlines (\n) with <br> for multi-line display
+                    const escapedNote = driver.weeklyNote
+                        .replace(/"/g, '&quot;')
+                        .replace(/'/g, '&#39;')
+                        .replace(/\n/g, '<br>');
+                        
                     noteHtml = `
                     <div class="tooltip-container" data-tooltip="${escapedNote}">
                         <svg class="note-indicator-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
@@ -1784,7 +1800,11 @@ export function openActivityHistoryModal(driver, mileageData, settings, daysTake
 
         let noteIconHtml = '';
         if (noteContent) {
-            const escapedNote = noteContent.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+            const escapedNote = noteContent
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;')
+                .replace(/\n/g, '<br>');
+
             noteIconHtml = `
                 <div class="tooltip-container ml-2 cursor-help" data-tooltip="${escapedNote}">
                     <svg class="w-4 h-4 text-indigo-300" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
