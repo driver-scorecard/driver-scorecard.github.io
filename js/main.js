@@ -2028,7 +2028,8 @@ function processDataForSelectedDate() {
     // The rest of the function remains identical
     // We now pass the INDEXES (mileageIndex, safetyIndex, daysTakenIndex) instead of the raw arrays
     // Added mpgOverrides to the call
-    processedDriversForDate = calc.processDriverDataForDate(driversForDate, mileageIndex, settings, safetyIndex, overriddenDistances, daysTakenIndex, dispatcherOverrides, allDrivers, mpgOverrides);
+    // ADDED: Passed allLockedData for underperformer history check
+    processedDriversForDate = calc.processDriverDataForDate(driversForDate, mileageIndex, settings, safetyIndex, overriddenDistances, daysTakenIndex, dispatcherOverrides, allDrivers, mpgOverrides, allLockedData);
 
     // --- START: APPLY OVERRIDES ---
     // Apply saved overrides AFTER all calculations are done to prevent them from being overwritten.
