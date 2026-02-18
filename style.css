@@ -425,12 +425,17 @@ td.distance-samsara-active {
     padding: 8px 12px;
     z-index: 1000;
     font-size: 0.8rem;
-    line-height: 1.25;
+    line-height: 1.4; /* Slightly increased for readability */
     font-weight: normal;
     text-transform: none;
     pointer-events: none;
     opacity: 0;
     transition: opacity 0.2s;
+    
+    /* --- Added for multi-line support --- */
+    max-width: 300px;
+    white-space: pre-wrap; /* Preserves whitespace and wraps text */
+    word-wrap: break-word;
 }
 #global-tooltip:not(.hidden) {
     opacity: 1;
