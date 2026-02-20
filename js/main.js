@@ -217,8 +217,8 @@ function filterAndRenderTable() {
         });
     }
 
-    // Filter for Locked Data (Driver Reps, Driver Rep Leads & Franchise)
-    if (currentUser && (currentUser.role.trim() === 'Driver Rep' || currentUser.role.trim() === 'Driver Rep Lead' || currentUser.role.trim() === 'Franchise')) {
+    // Filter for Locked Data (Driver Reps, Driver Rep Leads, Team & Franchise)
+    if (currentUser && (currentUser.role.trim() === 'Driver Rep' || currentUser.role.trim() === 'Driver Rep Lead' || currentUser.role.trim() === 'Team' || currentUser.role.trim() === 'Franchise')) {
         filteredDrivers = filteredDrivers.filter(driver => driver.isLocked === true);
     }
 
@@ -1861,7 +1861,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const navFuelTankLink = document.getElementById('nav-fuel-tank');
             if (navFuelTankLink) navFuelTankLink.style.display = 'none';
             
-            if (userRole !== 'Driver Rep' && userRole !== 'Driver Rep Lead' && userRole !== 'Marketing' && userRole !== 'Franchise') {
+            if (userRole !== 'Driver Rep' && userRole !== 'Driver Rep Lead' && userRole !== 'Team' && userRole !== 'Marketing' && userRole !== 'Franchise') {
                 visibleColumnKeys = visibleColumnKeys.filter(key => key !== 'actions');
             }
         }
