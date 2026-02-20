@@ -183,6 +183,7 @@ function filterAndRenderTable() {
             else if (userRole === 'Team' && userAccessList.includes(d.team)) hasAccess = true;
             else if (userRole === 'Franchise' && userAccessList.includes(d.franchise)) hasAccess = true;
             else if (userRole === 'Driver Rep' && userAccessList.includes(d.driver_rep) && d.contract_type === 'TPOG') hasAccess = true;
+            else if (userRole === 'Driver Rep Lead' && d.contract_type === 'TPOG') hasAccess = true;
             else if (userRole === 'Marketing' && userAccessList.includes(d.name)) hasAccess = true;
             if (!hasAccess) return false;
         }
@@ -216,8 +217,8 @@ function filterAndRenderTable() {
         });
     }
 
-    // Filter for Locked Data (Driver Reps & Franchise)
-    if (currentUser && (currentUser.role.trim() === 'Driver Rep' || currentUser.role.trim() === 'Franchise')) {
+    // Filter for Locked Data (Driver Reps, Driver Rep Leads & Franchise)
+    if (currentUser && (currentUser.role.trim() === 'Driver Rep' || currentUser.role.trim() === 'Driver Rep Lead' || currentUser.role.trim() === 'Franchise')) {
         filteredDrivers = filteredDrivers.filter(driver => driver.isLocked === true);
     }
 
@@ -1422,7 +1423,7 @@ if (newUserRoleSelect && newUserAccessInput && addAccessBtn && accessTagsContain
     newUserRoleSelect.addEventListener('change', () => {
         const selectedRole = newUserRoleSelect.value;
         
-        if (selectedRole === 'Admin' || selectedRole === 'Onboarder') {
+        if (selectedRole === 'Admin' || selectedRole === 'Onboarder' || selectedRole === 'Driver Rep Lead') {
             newUserAccessContainer.classList.add('hidden');
             currentAccessList = [];
             renderTags();
@@ -1771,6 +1772,7 @@ function showMainApp() {
                 if (userRole === 'Team' && userAccessList.includes(driver.team)) return true;
                 if (userRole === 'Franchise' && userAccessList.includes(driver.franchise)) return true;
                 if (userRole === 'Driver Rep' && userAccessList.includes(driver.driver_rep)) return true;
+                if (userRole === 'Driver Rep Lead') return true;
                 if (userRole === 'Marketing' && userAccessList.includes(driver.name)) return true;
                 return false;
             });
@@ -1859,7 +1861,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const navFuelTankLink = document.getElementById('nav-fuel-tank');
             if (navFuelTankLink) navFuelTankLink.style.display = 'none';
             
-            if (userRole !== 'Driver Rep' && userRole !== 'Marketing' && userRole !== 'Franchise') {
+            if (userRole !== 'Driver Rep' && userRole !== 'Driver Rep Lead' && userRole !== 'Marketing' && userRole !== 'Franchise') {
                 visibleColumnKeys = visibleColumnKeys.filter(key => key !== 'actions');
             }
         }
@@ -1882,7 +1884,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (helpBtn) helpBtn.classList.remove('hidden');
         }
 
-        if (userRole === 'Dispatcher' || userRole === 'Driver Rep' || userRole === 'Franchise') {
+        if (userRole === 'Dispatcher' || userRole === 'Driver Rep' || userRole === 'Driver Rep Lead' || userRole === 'Franchise') {
             const navArchiveLink = document.getElementById('nav-archive');
             if (navArchiveLink) navArchiveLink.style.display = 'none';
             const helpBtn = document.getElementById('marketing-help-btn');
