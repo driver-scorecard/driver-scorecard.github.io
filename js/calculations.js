@@ -821,7 +821,8 @@ export function processDriverDataForDate(driversForDate, mileageIndex, settings,
                             const overrideKey = `${driver.name}_${dayString}`;
                             const overrideStatus = dispatcherOverrides[overrideKey];
                             const isNotStarted = overrideStatus === 'NOT_STARTED';
-                            const isContractEnded = overrideStatus === 'CONTRACT_ENDED';
+                            // FIX: Only treat CONTRACT_ENDED as a streak reset if the driver is NOT TPOG
+                            const isContractEnded = (overrideStatus === 'CONTRACT_ENDED' && driver.contract_type !== 'TPOG');
     
                             if ((settings.weeksOutResetOnDaysOff && isDayOff) || isNotStarted || isContractEnded) {
                                 continuousDayStreak = 0;
@@ -843,7 +844,12 @@ export function processDriverDataForDate(driversForDate, mileageIndex, settings,
                             const dayString = formatDate(currentDay);
                             const overrideKey = `${driver.name}_${dayString}`;
                             const overrideStatus = dispatcherOverrides[overrideKey];
-                            if (overrideStatus === 'NOT_STARTED' || overrideStatus === 'CONTRACT_ENDED') {
+                            
+                            const isNotStarted = overrideStatus === 'NOT_STARTED';
+                            // FIX: Do not trigger a balance/streak reset on CONTRACT_ENDED if driver is TPOG
+                            const isContractEnded = (overrideStatus === 'CONTRACT_ENDED' && driver.contract_type !== 'TPOG');
+
+                            if (isNotStarted || isContractEnded) {
                                 resetTriggeredThisWeek = true;
                                 break;
                             }
@@ -909,7 +915,12 @@ export function processDriverDataForDate(driversForDate, mileageIndex, settings,
                             const dayString = formatDate(currentDay);
                             const overrideKey = `${driver.name}_${dayString}`;
                             const overrideStatus = dispatcherOverrides[overrideKey];
-                            if (overrideStatus === 'NOT_STARTED' || overrideStatus === 'CONTRACT_ENDED') {
+
+                            const isNotStarted = overrideStatus === 'NOT_STARTED';
+                            // FIX: Do not trigger a balance/streak reset on CONTRACT_ENDED if driver is TPOG
+                            const isContractEnded = (overrideStatus === 'CONTRACT_ENDED' && driver.contract_type !== 'TPOG');
+
+                            if (isNotStarted || isContractEnded) {
                                 hasNotStartedInWeek = true;
                                 break;
                             }
