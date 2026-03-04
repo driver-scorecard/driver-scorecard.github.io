@@ -211,6 +211,16 @@ export function renderTable(data, state, currentUser) {
                 }
                 // ---------------------------
 
+                // --- Company Swap Flag ---
+                if (driver.changedCompany) {
+                    icons += `<div class="tooltip-container" data-tooltip="Swapped company from ${driver.previousCompany}">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5 text-green-500">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
+                        </svg>
+                    </div>`;
+                }
+                // -------------------------
+
                 // FIX: Check the flags for source data existence, not the edited values
                 if (driver.hasPrologsData) {
                     icons += '<div class="tooltip-container" data-tooltip="ProLogs data available"><div class="data-indicator indicator-p">P</div></div>';
@@ -1648,7 +1658,7 @@ export function openActivityHistoryModal(driver, mileageData, settings, daysTake
 
         // --- Generate Stats HTML if Locked ---
         let statsSegment = '';
-        let contractInfoHtml = ''; // New variable for Company/Contract
+        let contractInfoHtml = ''; 
 
         if (isLocked && lockedSnapshot) {
             const tpog = lockedSnapshot.totalTpog ? lockedSnapshot.totalTpog.toFixed(1) + '%' : '0.0%';
@@ -1658,18 +1668,43 @@ export function openActivityHistoryModal(driver, mileageData, settings, daysTake
             const escrowDisplay = escrowVal > 0 ? `-$${escrowVal.toFixed(0)}` : '-';
             const escrowColor = escrowVal > 0 ? 'text-red-400' : 'text-slate-500';
 
-            // New: Extract Contract and Company info
             const contract = lockedSnapshot.contract_type || 'Unknown';
             const company = lockedSnapshot.company || 'Unknown';
-            contractInfoHtml = `<span class="ml-2 text-[9px] font-bold text-slate-400 border border-slate-600 px-1 rounded uppercase tracking-wider" title="Contract & Company">${contract} • ${company}</span>`;
+            
+            contractInfoHtml = `<span class="text-[10px] font-semibold text-slate-300 border border-slate-600 bg-slate-800 px-2 py-0.5 rounded shadow-sm" title="Contract & Company">${contract} • ${company}</span>`;
+
+            const btnDriverId = lockedSnapshot.id || driver.id;
+
+            const actionButtons = `
+                <div class="flex items-center gap-1 border-l border-slate-700 pl-3 ml-2">
+                    <button class="history-view-report-btn p-1.5 rounded-full hover:bg-slate-700 text-slate-400 hover:text-blue-400 transition-colors" data-driver-id="${btnDriverId}" data-pay-date="${currentPayDateStr}" title="View Report">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                    </button>
+                    <button class="history-download-btn p-1.5 rounded-full hover:bg-slate-700 text-slate-400 hover:text-white transition-colors" data-driver-id="${btnDriverId}" data-pay-date="${currentPayDateStr}" title="Download Automatic Report">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                    </button>
+                </div>
+            `;
 
             statsSegment = `
-                <div class="flex flex-wrap items-center text-[11px] sm:text-xs text-slate-400 mt-1 sm:mt-0 sm:ml-auto mr-4">
-                    <span class="hidden sm:inline text-slate-600 mx-2">|</span>
-                    <span class="mr-1">Gross:</span> <span class="text-slate-200 font-medium mr-3">${gross}</span>
-                    <span class="mr-1">Miles:</span> <span class="text-slate-200 font-medium mr-3">${miles}</span>
-                    <span class="mr-1">Escrow:</span> <span class="${escrowColor} font-medium mr-3">${escrowDisplay}</span>
-                    <span class="mr-1">Pay:</span> <span class="text-yellow-500 font-bold">${tpog}</span>
+                <div class="flex items-center gap-3 ml-auto">
+                    <div class="flex flex-col items-end">
+                        <span class="text-[9px] text-slate-500 uppercase tracking-wider mb-0.5">Gross</span>
+                        <span class="text-xs font-bold text-slate-200">${gross}</span>
+                    </div>
+                    <div class="flex flex-col items-end">
+                        <span class="text-[9px] text-slate-500 uppercase tracking-wider mb-0.5">Miles</span>
+                        <span class="text-xs font-bold text-slate-200">${miles}</span>
+                    </div>
+                    <div class="flex flex-col items-end">
+                        <span class="text-[9px] text-slate-500 uppercase tracking-wider mb-0.5">Escrow</span>
+                        <span class="text-xs font-bold ${escrowColor}">${escrowDisplay}</span>
+                    </div>
+                    <div class="flex flex-col items-end border-l border-slate-700 pl-3">
+                        <span class="text-[9px] text-slate-500 uppercase tracking-wider mb-0.5">Pay</span>
+                        <span class="text-sm font-bold text-yellow-500">${tpog}</span>
+                    </div>
+                    ${actionButtons}
                 </div>
             `;
         }
@@ -1741,20 +1776,18 @@ export function openActivityHistoryModal(driver, mileageData, settings, daysTake
         }
         
         const checkmarkHtml = isFullyConfirmed ?
-            `<div class="tooltip-container" data-tooltip="Reviewed by Dispatcher">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
+            `<div class="tooltip-container flex items-center justify-center w-6 h-6" data-tooltip="Reviewed by Dispatcher">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-green-500" viewBox="0 0 20 20" fill="currentColor">
                     <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
                 </svg>
-            </div>` : '';
+            </div>` : '<div class="w-6 h-6"></div>';
         
-        // This variable will hold the HTML for the 7 day blocks
         let activityBlocksHtml = '';
 
         weeklyActivityData.forEach(activity => {
-            let colorClass = 'activity-red'; // Default to red
+            let colorClass = 'activity-red'; 
             const statuses = (activity.statuses || '').toUpperCase();
 
-            // --- UPDATED COLOR LOGIC ---
             if (statuses.includes('NOT_STARTED') || statuses.includes('CONTRACT_ENDED')) {
                 colorClass = 'activity-grey';
             } else if (statuses.includes('DAY_OFF')) {
@@ -1778,27 +1811,22 @@ export function openActivityHistoryModal(driver, mileageData, settings, daysTake
                 tooltipText = `${activity.fullDate} - ${miles} ${mileLabel}. Status: ${activity.tooltipStatus}`;
             }
 
-            // Overlay class removed
-
             activityBlocksHtml += `<div class="tooltip-container" data-tooltip="${tooltipText}">
                                     <div class="weekly-activity-block ${colorClass}">${activity.day}</div>
                                 </div>`;
         });
 
-        // --- 1. Note Icon Logic ---
-        // Try to get note from Snapshot (if locked) OR Global Cache (if unlocked)
         let noteContent = '';
         if (isLocked && lockedSnapshot && lockedSnapshot.weeklyNote) {
             noteContent = lockedSnapshot.weeklyNote;
         } else {
-            // Reconstruct the key: DriverName_YYYY-MM-DD
             const noteKey = `${driver.name}_${currentPayDateStr}`;
             if (allWeeklyNotes[noteKey]) {
                 noteContent = allWeeklyNotes[noteKey];
             }
         }
 
-        let noteIconHtml = '';
+        let noteIconHtml = '<div class="w-6 h-6"></div>'; // Match checkmark size for perfect centering
         if (noteContent) {
             const escapedNote = noteContent
                 .replace(/"/g, '&quot;')
@@ -1806,31 +1834,53 @@ export function openActivityHistoryModal(driver, mileageData, settings, daysTake
                 .replace(/\n/g, '<br>');
 
             noteIconHtml = `
-                <div class="tooltip-container ml-2 cursor-help" data-tooltip="${escapedNote}">
-                    <svg class="w-4 h-4 text-indigo-300" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                <div class="tooltip-container cursor-help flex items-center justify-center w-6 h-6" data-tooltip="${escapedNote}">
+                    <svg class="w-5 h-5 text-indigo-400 hover:text-indigo-300 transition-colors" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                         <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
                     </svg>
                 </div>`;
         }
 
-        // --- 3. Render Week Card (Single Row Layout) ---
+        const lockedBadge = isLocked ? '<span class="text-[10px] font-bold text-blue-400 border border-blue-800 bg-blue-900/30 px-2 py-0.5 rounded uppercase tracking-wider shadow-sm">Locked</span>' : '';
+        
+        // Only generate the badge row if there are actual badges to show
+        let badgesHtml = '';
+        if (lockedBadge || contractInfoHtml) {
+            badgesHtml = `
+                <div class="flex items-center gap-1.5 flex-wrap mt-1">
+                    ${lockedBadge}
+                    ${contractInfoHtml}
+                </div>
+            `;
+        }
+
+        // Format date from YYYY-MM-DD to DD. MMM, YYYY
+        const dateParts = currentPayDateStr.split('-');
+        const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        const formattedPayDate = `${dateParts[2]}. ${monthNames[parseInt(dateParts[1], 10) - 1]}, ${dateParts[0]}`;
+
+        // NEW GRID LAYOUT: Shifted slightly left using a 40/60 ratio (2fr left, 3fr right)
         let weekHtml = `
-            <div class="mb-3 bg-slate-800 rounded-lg border border-slate-700/50 shadow-sm overflow-hidden">
-                <div class="flex flex-wrap items-center justify-between px-3 py-2 bg-slate-900/40 border-b border-slate-700/50">
-                    <div class="flex items-center flex-grow">
-                        <span class="text-xs font-semibold text-slate-200 whitespace-nowrap">${formatDate(tuesday)} to ${formatDate(monday)}</span>
-                        ${isLocked ? '<span class="ml-2 text-[9px] font-bold text-blue-400 border border-blue-400 px-1 rounded uppercase tracking-wider">Locked</span>' : ''}
-                        ${contractInfoHtml} 
-                        ${noteIconHtml}
-                        ${statsSegment}
+            <div class="group grid grid-cols-[2fr_auto_3fr] items-center bg-slate-800/40 hover:bg-slate-800 border border-slate-700/50 rounded-xl p-2.5 mb-2 transition-all duration-200 gap-4 shadow-sm hover:shadow-md hover:border-slate-600">
+                
+                <div class="flex flex-col justify-center min-w-0">
+                    <div class="flex items-center gap-1.5 text-slate-300">
+                        <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                        <span class="text-sm font-semibold whitespace-nowrap">${formattedPayDate}</span>
                     </div>
-                    ${checkmarkHtml}
+                    ${badgesHtml}
                 </div>
                 
-                <div class="flex items-center justify-center p-2">
-                    <div class="flex items-center gap-1">
+                <div class="flex items-center justify-center gap-2 flex-shrink-0">
+                    ${checkmarkHtml}
+                    <div class="flex items-center gap-1 bg-slate-900/50 p-1 rounded-lg border border-slate-700/50 shadow-inner">
                         ${activityBlocksHtml}
                     </div>
+                    ${noteIconHtml}
+                </div>
+
+                <div class="flex items-center justify-end min-w-0">
+                    ${statsSegment}
                 </div>
             </div>`;
         
@@ -1846,6 +1896,25 @@ export function openActivityHistoryModal(driver, mileageData, settings, daysTake
     // --- END: Dynamic Loop Logic ---
 
     content.innerHTML = historyHtml || '<p class="text-slate-500 text-center py-10">No historical activity found.</p>';
+
+    // Attach click listener for the dynamically rendered action buttons
+    content.onclick = (e) => {
+        const viewBtn = e.target.closest('.history-view-report-btn');
+        const downloadBtn = e.target.closest('.history-download-btn');
+        if (viewBtn || downloadBtn) {
+            const btn = viewBtn || downloadBtn;
+            const lockedJSON = allLockedData[`${btn.dataset.driverId}_${btn.dataset.payDate}`];
+            if (lockedJSON) {
+                const sData = { ...JSON.parse(lockedJSON), isLocked: true };
+                // Call the existing preview/download functions
+                if (viewBtn) {
+                    viewDriverReport(sData, sData.lockedSettings || settings, [sData]);
+                } else {
+                    downloadDriverReport(sData, sData.lockedSettings || settings, [sData]);
+                }
+            }
+        }
+    };
 }
 
 
