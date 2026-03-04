@@ -777,6 +777,9 @@ export function processDriverDataForDate(driversForDate, mileageIndex, settings,
         const selectedDateStr = driversForDate[0].pay_date.split('T')[0];
 
         driversForDate.forEach(driver => {
+            // Get raw system logs for live checks
+            const driverDaysOffHistory = daysTakenIndex[driver.name] || [];
+            
             const allRecordsForDriver = allDrivers
                 .filter(d => d.name === driver.name && d.pay_date)
                 .sort((a, b) => new Date(a.pay_date) - new Date(b.pay_date));
@@ -786,194 +789,185 @@ export function processDriverDataForDate(driversForDate, mileageIndex, settings,
             const payDatesProcessed = new Set();
             const dailyContribution = 0.1429;
     
-            if (settings.weeksOutMethod === 'dailyAccrual') {
-                    let continuousDayStreak = 0;
+            let continuousDayStreak = 0; 
     
-                    for (const record of allRecordsForDriver) {
-                        const recordPayDateStr = record.pay_date.split('T')[0];
-                        if (payDatesProcessed.has(recordPayDateStr)) continue;
-                        payDatesProcessed.add(recordPayDateStr);
-    
-                        const performanceDate = new Date(recordPayDateStr + 'T12:00:00Z');
-                        if (record.pay_delayWks === 2) performanceDate.setUTCDate(performanceDate.getUTCDate() - 7);
-                        
-                        const monday = new Date(performanceDate);
-                        monday.setUTCDate(monday.getUTCDate() - (monday.getUTCDay() + 6) % 7);
-                        const tuesday = new Date(monday);
-                        tuesday.setUTCDate(monday.getUTCDate() - 6);
-    
-                        const daysOffInWeek = driver.fullDaysOffHistory.filter(h => {
-                            const recordDate = new Date(h.date + 'T12:00:00Z');
-                            return recordDate >= tuesday && recordDate <= monday;
-                        }).length;
-    
-                        const oldStreakInWeeks = Math.floor(continuousDayStreak * dailyContribution);
-                        
-                        // --- UPDATED: Track Max Streak Logic ---
-                        let maxDaysThisWeek = continuousDayStreak;
+            for (const record of allRecordsForDriver) {
+                const recordPayDateStr = record.pay_date.split('T')[0];
+                if (payDatesProcessed.has(recordPayDateStr)) continue;
+                payDatesProcessed.add(recordPayDateStr);
+                
+                const performanceDate = new Date(recordPayDateStr + 'T12:00:00Z');
+                if (record.pay_delayWks === 2) performanceDate.setUTCDate(performanceDate.getUTCDate() - 7);
+                
+                const monday = new Date(performanceDate);
+                monday.setUTCDate(monday.getUTCDate() - (monday.getUTCDay() + 6) % 7);
+                const tuesday = new Date(monday);
+                tuesday.setUTCDate(monday.getUTCDate() - 6);
 
-                        for (let i = 0; i < 7; i++) {
-                            const currentDay = new Date(tuesday);
-                            currentDay.setUTCDate(tuesday.getUTCDate() + i);
-                            const isDayOff = driver.fullDaysOffHistory.some(h => new Date(h.date + 'T12:00:00Z').getTime() === currentDay.getTime());
-                            
-                            const dayString = formatDate(currentDay);
-                            const overrideKey = `${driver.name}_${dayString}`;
-                            const overrideStatus = dispatcherOverrides[overrideKey];
-                            const isNotStarted = overrideStatus === 'NOT_STARTED';
-                            // FIX: Only treat CONTRACT_ENDED as a streak reset if the driver is NOT TPOG
-                            const isContractEnded = (overrideStatus === 'CONTRACT_ENDED' && driver.contract_type !== 'TPOG');
-    
-                            if ((settings.weeksOutResetOnDaysOff && isDayOff) || isNotStarted || isContractEnded) {
-                                continuousDayStreak = 0;
-                            } else if (!isDayOff) {
-                                continuousDayStreak++;
-                            }
-                            
-                            // Capture peak streak before any future resets in the same week
-                            if (continuousDayStreak > maxDaysThisWeek) maxDaysThisWeek = continuousDayStreak;
-                        }
-                        // ---------------------------------------
-                        
-                        const newStreakInWeeks = Math.floor(continuousDayStreak * dailyContribution);
-    
-                        let resetTriggeredThisWeek = false;
-                        for (let i = 0; i < 7; i++) {
-                            const currentDay = new Date(tuesday);
-                            currentDay.setUTCDate(tuesday.getUTCDate() + i);
-                            const dayString = formatDate(currentDay);
-                            const overrideKey = `${driver.name}_${dayString}`;
-                            const overrideStatus = dispatcherOverrides[overrideKey];
-                            
-                            const isNotStarted = overrideStatus === 'NOT_STARTED';
-                            // FIX: Do not trigger a balance/streak reset on CONTRACT_ENDED if driver is TPOG
-                            const isContractEnded = (overrideStatus === 'CONTRACT_ENDED' && driver.contract_type !== 'TPOG');
+                const oldStreakInWeeks = settings.weeksOutMethod === 'dailyAccrual' 
+                    ? Math.floor(continuousDayStreak * dailyContribution) 
+                    : streak;
+                
+                let maxDaysThisWeek = continuousDayStreak;
+                let daysOffInWeek = 0;
+                let hasNotStartedInWeek = false;
+                let resetTriggeredThisWeek = false;
 
-                            if (isNotStarted || isContractEnded) {
-                                resetTriggeredThisWeek = true;
-                                break;
-                            }
+                // --- 1. Check for Locked Snapshot ---
+                // FIX: Look at locked data to ensure historical loop matches the UI perfectly
+                const lockedJSON = allLockedData[`${record.id}_${recordPayDateStr}`];
+                let lockedActivity = null;
+                let snapshotOffDays = null;
+                if (lockedJSON) {
+                    try {
+                        const snapshot = JSON.parse(lockedJSON);
+                        if (snapshot.weeklyActivity && snapshot.weeklyActivity.length === 7) {
+                            lockedActivity = snapshot.weeklyActivity;
                         }
-    
-                        if (recordPayDateStr === selectedDateStr) {
-                            driver.weeksOut = continuousDayStreak * dailyContribution;
-                            // Store peak for earnings calculation
-                            driver.peakWeeksOut = maxDaysThisWeek * dailyContribution;
-                            
-                            if (resetTriggeredThisWeek) {
-                                driver.balanceAtStartOfWeek = 0;
-                                driver.streakAtStartOfWeek = 0;
-                            } else {
-                                driver.balanceAtStartOfWeek = runningBalance;
-                                driver.streakAtStartOfWeek = oldStreakInWeeks;
-                            }
-                            break;
+                        if (snapshot.offDays !== undefined) {
+                            snapshotOffDays = snapshot.offDays;
                         }
-    
-                        if (resetTriggeredThisWeek) {
-                            runningBalance = 0;
-                        } else {
-                            if (newStreakInWeeks > oldStreakInWeeks) {
-                                for (let i = oldStreakInWeeks + 1; i <= newStreakInWeeks; i++) {
-                                    if (i === settings.timeOffStartAfterWeeks) {
-                                        runningBalance += settings.timeOffBaseDays;
-                                    } else if (i > settings.timeOffStartAfterWeeks) {
-                                        runningBalance += (1 / (settings.timeOffWeeksPerDay || 1));
-                                    }
-                                }
-                            }
-                            runningBalance -= daysOffInWeek;
-                            if (runningBalance < 0) {
-                                runningBalance = 0;
-                            }
+                    } catch(e) {}
+                }
+
+                // --- 2. Process the 7 Days ---
+                for (let i = 0; i < 7; i++) {
+                    const currentDay = new Date(tuesday);
+                    currentDay.setUTCDate(tuesday.getUTCDate() + i);
+                    const dayString = formatDate(currentDay);
+                    
+                    let isDayOff = false;
+                    let isNotStarted = false;
+                    let isContractEnded = false;
+
+                    if (lockedActivity) {
+                        // Trust the snapshot reality so the UI perfectly matches the math
+                        const dayAct = lockedActivity[i];
+                        const combinedStr = ((dayAct.statuses || '') + ' ' + (dayAct.tooltipStatus || '')).toUpperCase();
+                        
+                        if (combinedStr.includes('NOT_STARTED')) {
+                            isNotStarted = true;
+                        } else if (combinedStr.includes('CONTRACT_ENDED') && driver.contract_type !== 'TPOG') {
+                            isContractEnded = true;
+                        } else if (combinedStr.includes('DAY_OFF') || combinedStr.includes('TIME_OFF') || combinedStr.includes('DAY OFF')) {
+                            isDayOff = true;
+                        } else if (!combinedStr.includes('ACTIVE') && !combinedStr.includes('WITHOUT_LOAD') && !combinedStr.includes('NO DATA') && dayAct.mileage === 0) {
+                            // Catches other unhandled status strings that resulted in red UI blocks
+                            isDayOff = true; 
+                        }
+                        
+                        // If it has miles, the UI forced it to green (unless explicitly DAY OFF)
+                        if (dayAct.mileage > 0 && !combinedStr.includes('DAY_OFF') && !combinedStr.includes('DAY OFF')) {
+                            isDayOff = false;
+                        }
+                    } else {
+                        // Live Logic - Reading raw system logs directly to avoid missing TIME_OFF
+                        const statusesForDay = driverDaysOffHistory
+                            .filter(log => formatDate(new Date(log.date)) === dayString)
+                            .map(log => (log.activity_status || '').toUpperCase());
+                        const combinedLiveStr = statusesForDay.join(' ');
+
+                        const overrideKey = `${driver.name}_${dayString}`;
+                        const overrideStatus = dispatcherOverrides[overrideKey];
+                        
+                        isNotStarted = overrideStatus === 'NOT_STARTED';
+                        isContractEnded = (overrideStatus === 'CONTRACT_ENDED' && driver.contract_type !== 'TPOG');
+                        
+                        if (overrideStatus === 'DAY_OFF') {
+                            isDayOff = true;
+                        } else if (overrideStatus !== 'CORRECT' && overrideStatus !== undefined) {
+                            isDayOff = false; // explicitly active/without load
+                        } else if (combinedLiveStr.includes('DAY_OFF') || combinedLiveStr.includes('TIME_OFF')) {
+                            isDayOff = true; // System designated off
                         }
                     }
-    
-                } else { // fullWeeksOnly
-                    for (const record of allRecordsForDriver) {
-                        const recordPayDateStr = record.pay_date.split('T')[0];
-                        if (payDatesProcessed.has(recordPayDateStr)) continue;
-                        payDatesProcessed.add(recordPayDateStr);
-                        
-                        const performanceDate = new Date(recordPayDateStr + 'T12:00:00Z');
-                        if (record.pay_delayWks === 2) performanceDate.setUTCDate(performanceDate.getUTCDate() - 7);
-                        
-                        const monday = new Date(performanceDate);
-                        monday.setUTCDate(monday.getUTCDate() - (monday.getUTCDay() + 6) % 7);
-                        const tuesday = new Date(monday);
-                        tuesday.setUTCDate(monday.getUTCDate() - 6);
-    
-                        const daysOffInWeek = driver.fullDaysOffHistory.filter(h => {
-                            const recordDate = new Date(h.date + 'T12:00:00Z');
-                            return recordDate >= tuesday && recordDate <= monday;
-                        }).length;
-                        
-                        let hasNotStartedInWeek = false;
-                        for (let i = 0; i < 7; i++) {
-                            const currentDay = new Date(tuesday);
-                            currentDay.setUTCDate(tuesday.getUTCDate() + i);
-                            const dayString = formatDate(currentDay);
-                            const overrideKey = `${driver.name}_${dayString}`;
-                            const overrideStatus = dispatcherOverrides[overrideKey];
 
-                            const isNotStarted = overrideStatus === 'NOT_STARTED';
-                            // FIX: Do not trigger a balance/streak reset on CONTRACT_ENDED if driver is TPOG
-                            const isContractEnded = (overrideStatus === 'CONTRACT_ENDED' && driver.contract_type !== 'TPOG');
+                    if (isDayOff) daysOffInWeek++;
+                    if (isNotStarted) hasNotStartedInWeek = true;
+                    if (isNotStarted || isContractEnded) resetTriggeredThisWeek = true;
 
-                            if (isNotStarted || isContractEnded) {
-                                hasNotStartedInWeek = true;
-                                break;
-                            }
+                    // Daily Accrual Streak Loop Logic
+                    if (settings.weeksOutMethod === 'dailyAccrual') {
+                        if ((settings.weeksOutResetOnDaysOff && isDayOff) || isNotStarted || isContractEnded) {
+                            continuousDayStreak = 0;
+                        } else if (!isDayOff) {
+                            continuousDayStreak++;
                         }
-
-                        let weekMetCriteria = daysOffInWeek === 0 && !hasNotStartedInWeek;
-                        if (settings.weeksOutResetOnDaysOff && !weekMetCriteria) {
-                            streak = 0;
-                        }
-    
-                        if (recordPayDateStr === selectedDateStr) {
-                            driver.weeksOut = weekMetCriteria ? streak + 1 : streak;
-                            // For full weeks, peak is same as current unless logic differs, keeping consistent
-                            driver.peakWeeksOut = driver.weeksOut; 
-                            
-                            if (hasNotStartedInWeek) {
-                                driver.weeksOut = 0; 
-                                driver.peakWeeksOut = 0;
-                                driver.balanceAtStartOfWeek = 0;
-                                driver.streakAtStartOfWeek = 0;
-                            } else {
-                                driver.balanceAtStartOfWeek = runningBalance;
-                                driver.streakAtStartOfWeek = streak;
-                            }
-                            break;
-                        }
-    
-                        if (hasNotStartedInWeek) {
-                            streak = 0;
-                            runningBalance = 0;
-                        } else {
-                            const oldStreak = streak;
-                            if (settings.weeksOutResetOnDaysOff && !weekMetCriteria) {
-                                streak = 0;
-                            } else if (weekMetCriteria) {
-                                streak++;
-                            }
-                            if (streak > oldStreak) {
-                                for (let i = oldStreak + 1; i <= streak; i++) {
-                                    if (i === settings.timeOffStartAfterWeeks) {
-                                        runningBalance += settings.timeOffBaseDays;
-                                    } else if (i > settings.timeOffStartAfterWeeks) {
-                                        runningBalance += (1 / (settings.timeOffWeeksPerDay || 1));
-                                    }
-                                }
-                            }
-                            runningBalance -= daysOffInWeek;
-                            if (runningBalance < 0) {
-                                runningBalance = 0;
-                            }
-                        }
+                        if (continuousDayStreak > maxDaysThisWeek) maxDaysThisWeek = continuousDayStreak;
                     }
                 }
+
+                // Override with snapshot's absolute truth if available
+                if (snapshotOffDays !== null) {
+                    daysOffInWeek = snapshotOffDays;
+                }
+
+                // Full Weeks Only Loop Logic
+                let weekMetCriteria = daysOffInWeek === 0 && !hasNotStartedInWeek;
+                if (settings.weeksOutMethod === 'fullWeeksOnly') {
+                    if (hasNotStartedInWeek) {
+                        streak = 0;
+                    } else if (settings.weeksOutResetOnDaysOff && !weekMetCriteria) {
+                        streak = 0;
+                    } else if (weekMetCriteria) {
+                        streak++;
+                    }
+                }
+
+                // --- 3. Finalize if Target Week ---
+                if (recordPayDateStr === selectedDateStr) {
+                    if (settings.weeksOutMethod === 'dailyAccrual') {
+                        driver.weeksOut = continuousDayStreak * dailyContribution;
+                        driver.peakWeeksOut = maxDaysThisWeek * dailyContribution;
+                        driver.balanceAtStartOfWeek = resetTriggeredThisWeek ? 0 : runningBalance;
+                        driver.streakAtStartOfWeek = resetTriggeredThisWeek ? 0 : oldStreakInWeeks;
+                    } else {
+                        driver.weeksOut = weekMetCriteria ? oldStreakInWeeks + 1 : oldStreakInWeeks;
+                        driver.peakWeeksOut = driver.weeksOut;
+                        driver.balanceAtStartOfWeek = hasNotStartedInWeek ? 0 : runningBalance;
+                        driver.streakAtStartOfWeek = hasNotStartedInWeek ? 0 : oldStreakInWeeks;
+                    }
+                    // Write live off days count
+                    driver.offDays = daysOffInWeek;
+                    break;
+                }
+
+                // --- 4. Process Historical Deductions & Accruals ---
+                if (settings.weeksOutMethod === 'dailyAccrual') {
+                    if (resetTriggeredThisWeek) {
+                        runningBalance = 0;
+                    } else {
+                        const newStreakInWeeks = Math.floor(continuousDayStreak * dailyContribution);
+                        if (newStreakInWeeks > oldStreakInWeeks) {
+                            for (let i = oldStreakInWeeks + 1; i <= newStreakInWeeks; i++) {
+                                if (i === settings.timeOffStartAfterWeeks) {
+                                    runningBalance += settings.timeOffBaseDays;
+                                } else if (i > settings.timeOffStartAfterWeeks) {
+                                    runningBalance += (1 / (settings.timeOffWeeksPerDay || 1));
+                                }
+                            }
+                        }
+                        runningBalance -= daysOffInWeek;
+                        if (runningBalance < 0) runningBalance = 0;
+                    }
+                } else {
+                    if (hasNotStartedInWeek) {
+                        runningBalance = 0;
+                    } else {
+                        if (streak > oldStreakInWeeks) {
+                            for (let i = oldStreakInWeeks + 1; i <= streak; i++) {
+                                if (i === settings.timeOffStartAfterWeeks) {
+                                    runningBalance += settings.timeOffBaseDays;
+                                } else if (i > settings.timeOffStartAfterWeeks) {
+                                    runningBalance += (1 / (settings.timeOffWeeksPerDay || 1));
+                                }
+                            }
+                        }
+                        runningBalance -= daysOffInWeek;
+                        if (runningBalance < 0) runningBalance = 0;
+                    }
+                }
+            }
         });
     }
 
