@@ -48,7 +48,7 @@ let driversForDate = [];
 let daysTakenIndex = {}; // <-- NEW
 let availableContractTypes = [];
 let orderedColumnKeys = Object.keys(config.columnConfig);
-const defaultHiddenColumns = ['dispatcher', 'team', 'rpm', 'speeding_over11mph', 'speeding_over16mph', 'franchise', 'company', 'pay_delayWks', 'stubMiles', 'estimatedNet', 'speedingPercentile', 'driver_rep'];
+const defaultHiddenColumns = ['dispatcher', 'team', 'rpm', 'speeding_over11mph', 'speeding_over16mph', 'franchise', 'company', 'pay_delayWks', 'stubMiles', 'estimatedNet', 'speedingPercentile', 'driver_rep', 'contract_type'];
 let visibleColumnKeys = Object.keys(config.columnConfig).filter(key => !defaultHiddenColumns.includes(key));
 let pinnedColumns = { left: ['name'], right: ['totalTpog', 'bonuses', 'penalties', 'escrowDeduct', 'actions'] };
 let activeRowFilter = 'none';
@@ -456,6 +456,7 @@ userProfilesTableBody.addEventListener('click', async (e) => {
         setTimeout(() => {
             processDataForSelectedDate(); // Run the slow calculations.
             filterAndRenderTable();     // Then run the fast filtering and rendering.
+            checkMissingDataAndAlert(); // Check if ProLogs or Samsara data is missing
             ui.hideLoadingOverlay();    // Hide the overlay once done.
         }, 50); // A small timeout is enough to yield to the browser's event loop.
     });
@@ -1255,7 +1256,34 @@ userProfilesTableBody.addEventListener('click', async (e) => {
 
     const activityHistoryModal = document.getElementById('activity-history-modal');
     document.getElementById('close-activity-history-btn').addEventListener('click', ui.closeActivityHistoryModal);
-    activityHistoryModal.addEventListener('click', (e) => { if (e.target === activityHistoryModal) ui.closeActivityHistoryModal(); });
+    activityHistoryModal.addEventListener('click', (e) => { 
+        if (e.target === activityHistoryModal) ui.closeActivityHistoryModal(); 
+
+        // --- NEW: Handle History View/Download Buttons ---
+        const viewBtn = e.target.closest('.history-view-report-btn');
+        const downloadBtn = e.target.closest('.history-download-btn');
+        
+        if (viewBtn || downloadBtn) {
+            e.stopPropagation();
+            const targetBtn = viewBtn || downloadBtn;
+            const driverId = targetBtn.dataset.driverId;
+            const payDate = targetBtn.dataset.payDate;
+            
+            const lockKey = `${driverId}_${payDate}`;
+            const lockedJSON = allLockedData[lockKey];
+            
+            if (lockedJSON) {
+                // Ensure isLocked is true so the view generator uses lockedSettings
+                const snapshotData = { ...JSON.parse(lockedJSON), isLocked: true }; 
+                
+                if (viewBtn) {
+                    ui.viewDriverReport(snapshotData, settings, [snapshotData]); 
+                } else if (downloadBtn) {
+                    ui.downloadDriverReport(snapshotData, settings, [snapshotData]);
+                }
+            }
+        }
+    });
     
     document.querySelector('.history-tab[data-tab="safety"]').parentElement.addEventListener('click', (e) => { if (e.target.closest('.history-tab')) ui.switchHistoryTab(e.target.closest('.history-tab').dataset.tab); });
     
@@ -1666,21 +1694,8 @@ async function loadAndRenderUsers() {
 async function initializeApp() {
     ui.updateLoadingProgress('10%'); // Initial progress
 
-    // Start all data fetches in parallel and log their performance
-    const [
-        settingsData,
-        mileage,
-        drivers,
-        safetyData,
-        financeData,
-        daysHistory,
-        distanceOverrides,
-        dispatchOverrides,
-        savedOverridesData,
-        weeklyNotesData,
-        weeklyLocksData,
-        mpgOverridesData // <--- Add new variable here
-    ] = await Promise.all([
+    // Define all data fetches
+    const tasks = [
         logPerformance('Settings', api.loadSettings()),
         logPerformance('Mileage Data', api.loadMileageData()),
         logPerformance('Driver Data', api.fetchDriverData()),
@@ -1693,7 +1708,37 @@ async function initializeApp() {
         logPerformance('Weekly Notes', api.loadWeeklyNotes()),
         logPerformance('Locked Data', api.loadLockedData()),
         logPerformance('MPG Overrides', api.loadMpgOverrides())
-    ]);
+    ];
+
+    let completedTasks = 0;
+    const totalTasks = tasks.length;
+
+    // Attach a progress updater to each task
+    const progressTasks = tasks.map(task => 
+        task.then(result => {
+            completedTasks++;
+            // Calculate progress from 10% up to 80%
+            const currentProgress = 10 + (completedTasks / totalTasks) * 70;
+            ui.updateLoadingProgress(`${currentProgress}%`);
+            return result;
+        })
+    );
+
+    // Start all data fetches in parallel
+    const [
+        settingsData,
+        mileage,
+        drivers,
+        safetyData,
+        financeData,
+        daysHistory,
+        distanceOverrides,
+        dispatchOverrides,
+        savedOverridesData,
+        weeklyNotesData,
+        weeklyLocksData,
+        mpgOverridesData
+    ] = await Promise.all(progressTasks);
 
     // Assign results to state variables once all promises are resolved
     settings = settingsData;
@@ -1758,6 +1803,22 @@ async function initializeApp() {
     setTimeout(api.cacheAllHistoryDataInBackground, 1000);
 }
 
+function checkMissingDataAndAlert() {
+    if (!processedDriversForDate || processedDriversForDate.length === 0) return;
+
+    const hasAnyPrologs = processedDriversForDate.some(d => d.hasPrologsData);
+    const hasAnySamsara = processedDriversForDate.some(d => d.hasSamsaraData);
+
+    let messages = [];
+    if (!hasAnyPrologs) messages.push("No ProLogs data found for this week.");
+    if (!hasAnySamsara) messages.push("No Samsara data found for this week.");
+
+    if (messages.length > 0) {
+        const combinedMessage = messages.join(" ") + " Please refresh the page or contact Mick if the issue persists.";
+        showCustomAlert(combinedMessage, 'Missing Data Warning');
+    }
+}
+
 function showMainApp() {
     const mainAppContainer = document.getElementById('main-app-container');
     const loadingOverlay = document.getElementById('loading-overlay');
@@ -1793,6 +1854,7 @@ function showMainApp() {
 
         processDataForSelectedDate(); 
         filterAndRenderTable();
+        checkMissingDataAndAlert(); // Check if ProLogs or Samsara data is missing
 
     } else {
         tableBody.innerHTML = `<tr><td colspan="${Object.keys(config.columnConfig).length}" class="text-center py-10 text-red-500">Failed to load data.</td></tr>`;
