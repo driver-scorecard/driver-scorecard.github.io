@@ -48,7 +48,7 @@ let driversForDate = [];
 let daysTakenIndex = {}; // <-- NEW
 let availableContractTypes = [];
 let orderedColumnKeys = Object.keys(config.columnConfig);
-const defaultHiddenColumns = ['dispatcher', 'team', 'rpm', 'speeding_over11mph', 'speeding_over16mph', 'franchise', 'company', 'pay_delayWks', 'stubMiles', 'estimatedNet', 'speedingPercentile', 'driver_rep', 'contract_type'];
+const defaultHiddenColumns = ['dispatcher', 'team', 'rpm', 'speeding_over11mph', 'speeding_over16mph', 'franchise', 'company', 'pay_delayWks', 'estimatedNet', 'speedingPercentile', 'driver_rep', 'contract_type'];
 let visibleColumnKeys = Object.keys(config.columnConfig).filter(key => !defaultHiddenColumns.includes(key));
 let pinnedColumns = { left: ['name'], right: ['totalTpog', 'bonuses', 'penalties', 'escrowDeduct', 'actions'] };
 let activeRowFilter = 'none';
