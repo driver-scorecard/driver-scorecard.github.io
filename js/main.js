@@ -1843,6 +1843,16 @@ function showMainApp() {
         
         if (payDates.length > 0) {
             payDateSelect.innerHTML = payDates.map(date => `<option value="${date}">${date}</option>`).join('');
+            
+            // --- NEW: Default to the most recent date with a TPOG driver ---
+            const defaultDate = payDates.find(date => {
+                return driversForUser.some(d => d.pay_date && d.pay_date.split('T')[0] === date && d.contract_type === 'TPOG');
+            });
+            
+            if (defaultDate) {
+                payDateSelect.value = defaultDate;
+            }
+            // --- END NEW ---
         } else {
              payDateSelect.innerHTML = `<option>No weeks found</option>`;
         }
