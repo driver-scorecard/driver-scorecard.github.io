@@ -137,10 +137,12 @@ th.menu-open {
     border-radius: 0.5rem;
     z-index: 1000;
     opacity: 0;
+    pointer-events: none; /* Prevents the invisible element from blocking clicks */
     transition: opacity 0.3s, transform 0.3s;
 }
 #toast.show {
     opacity: 1;
+    pointer-events: auto; /* Re-enables clicks when visible */
     transform: translate(-50%, -10px);
 }
 /* --- COMBINED OVERLAY BACKGROUND STYLES --- */
@@ -1493,9 +1495,9 @@ td.distance-clickable:hover {
 }
 
 
-/* Make the Activity History modal approx 10% wider */
+/* Activity History modal sizing */
 #activity-history-modal > div {
-    max-width: 50rem !important; /* 53rem is ~10% wider than the default 48rem */
+    max-width: 55rem !important; /* Scaled down ~10% for better visuals */
 }
 
 /* --- MPG Toggle Styles (Matched to Distance Columns) --- */
