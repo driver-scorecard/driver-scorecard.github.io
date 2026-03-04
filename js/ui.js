@@ -445,14 +445,18 @@ export function renderTable(data, state, currentUser) {
                 
         
                 content = `<div class="flex items-center justify-center gap-2">
-                            <button class="show-history-btn p-0 rounded-full hover:bg-slate-700" data-driver-id="${driver.id}" title="Show Historical Activity">
-                                <svg class="w-5 h-5 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-                                </svg>
-                            </button>
-                            <div class="flex justify-center items-center gap-0.5">${activityBlocksHtml}</div>
-                            ${checkmarkHtml}
-                            ${noteHtml}
+                            <div class="w-12 flex justify-end items-center flex-shrink-0">
+                                <button class="show-history-btn p-0 rounded-full hover:bg-slate-700" data-driver-id="${driver.id}" title="Show Historical Activity">
+                                    <svg class="w-5 h-5 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                                    </svg>
+                                </button>
+                            </div>
+                            <div class="flex justify-center items-center gap-0.5 flex-shrink-0">${activityBlocksHtml}</div>
+                            <div class="w-12 flex justify-start items-center gap-1 flex-shrink-0">
+                                ${checkmarkHtml}
+                                ${noteHtml}
+                            </div>
                            </div>`;
             } else {
                 content = '-';
