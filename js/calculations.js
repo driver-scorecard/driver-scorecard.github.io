@@ -500,6 +500,26 @@ export function processDriverDataForDate(driversForDate, mileageIndex, settings,
         const selectedDateStr = driversForDate[0].pay_date.split('T')[0];
 
        driversForDate.forEach(driver => {
+        // --- Company Swap Logic ---
+        if (allDrivers) {
+            const allDriverRecords = allDrivers
+                .filter(d => d.name === driver.name && d.pay_date)
+                .sort((a, b) => new Date(b.pay_date) - new Date(a.pay_date)); // Sort descending
+            
+            const prevRecord = allDriverRecords.find(d => d.pay_date.split('T')[0] < selectedDateStr);
+            
+            const currentCompany = (driver.company || '').trim();
+            const prevCompany = prevRecord ? (prevRecord.company || '').trim() : '';
+
+            if (prevRecord && prevCompany && currentCompany && prevCompany !== currentCompany) {
+                driver.changedCompany = true;
+                driver.previousCompany = prevCompany;
+            } else {
+                driver.changedCompany = false;
+            }
+        }
+        // --------------------------
+
         // --- Underperformer Logic (Tiered Sums AND Fixed Median) ---
         // 1. LOCKED WEEKS ONLY
         // 2. TPOG ONLY
@@ -790,13 +810,30 @@ export function processDriverDataForDate(driversForDate, mileageIndex, settings,
             const dailyContribution = 0.1429;
     
             let continuousDayStreak = 0; 
-    
-            for (const record of allRecordsForDriver) {
-                const recordPayDateStr = record.pay_date.split('T')[0];
-                if (payDatesProcessed.has(recordPayDateStr)) continue;
-                payDatesProcessed.add(recordPayDateStr);
+
+        for (const record of allRecordsForDriver) {
+            const recordPayDateStr = record.pay_date.split('T')[0];
+            if (payDatesProcessed.has(recordPayDateStr)) continue;
+            payDatesProcessed.add(recordPayDateStr);
+            
+            // --- FIX: Ignore weeks where contract is not TPOG ---
+            if (record.contract_type !== 'TPOG') {
+                continuousDayStreak = 0; // Reset streak if they left TPOG
+                streak = 0;
                 
-                const performanceDate = new Date(recordPayDateStr + 'T12:00:00Z');
+                if (recordPayDateStr === selectedDateStr) {
+                    driver.weeksOut = 0;
+                    driver.peakWeeksOut = 0;
+                    driver.balanceAtStartOfWeek = runningBalance;
+                    driver.streakAtStartOfWeek = 0;
+                    driver.offDays = 0;
+                    break;
+                }
+                continue; // Skip calculation for this week
+            }
+            // ----------------------------------------------------
+            
+            const performanceDate = new Date(recordPayDateStr + 'T12:00:00Z');
                 if (record.pay_delayWks === 2) performanceDate.setUTCDate(performanceDate.getUTCDate() - 7);
                 
                 const monday = new Date(performanceDate);
