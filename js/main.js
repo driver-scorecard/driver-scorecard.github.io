@@ -2152,6 +2152,7 @@ function processDataForSelectedDate() {
             // (in case they weren't in the snapshot)
             const originalId = driver.id;
             const originalNote = driver.weeklyNote; // from previous step
+            const latestDriverRep = driver.driver_rep; // Preserve latest known driver rep
             
             // 3. Overwrite the live driver object with the snapshot
             Object.assign(driver, lockedData);
@@ -2159,6 +2160,9 @@ function processDataForSelectedDate() {
             // 4. Restore the preserved properties
             driver.id = originalId;
             driver.weeklyNote = originalNote;
+            if (latestDriverRep !== undefined) {
+                driver.driver_rep = latestDriverRep;
+            }
             // FIX: We do NOT restore 'isDispatcherReviewed' from live calc. 
             // We assume the value in 'lockedData' (the snapshot) is the correct, frozen status.
             
@@ -4387,3 +4391,4 @@ function loadAndRenderFuelTankAnalysis() {
         tableBody.innerHTML = `<tr><td colspan="7" class="text-center py-10 text-red-500">An error occurred during analysis: ${error.message}</td></tr>`;
     }
 }
+
