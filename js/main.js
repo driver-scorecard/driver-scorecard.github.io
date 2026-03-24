@@ -186,6 +186,7 @@ function filterAndRenderTable() {
             else if (userRole === 'Driver Rep Lead' && d.contract_type === 'TPOG') hasAccess = true;
             else if (userRole === 'Recruiter' && userAccessList.includes(d.recruiter) && d.contract_type === 'TPOG') hasAccess = true;
             else if (userRole === 'Recruiter Team' && userAccessList.includes(d.recruiter_team) && d.contract_type === 'TPOG') hasAccess = true;
+            else if (userRole === 'All TPOG View' && d.contract_type === 'TPOG') hasAccess = true;
             else if (userRole === 'Marketing' && userAccessList.includes(d.name)) hasAccess = true;
             if (!hasAccess) return false;
         }
@@ -219,8 +220,8 @@ function filterAndRenderTable() {
         });
     }
 
-    // Filter for Locked Data (Driver Reps, Driver Rep Leads, Recruiters, Team & Franchise)
-    if (currentUser && (currentUser.role.trim() === 'Driver Rep' || currentUser.role.trim() === 'Driver Rep Lead' || currentUser.role.trim() === 'Recruiter' || currentUser.role.trim() === 'Recruiter Team' || currentUser.role.trim() === 'Team' || currentUser.role.trim() === 'Franchise')) {
+    // Filter for Locked Data (Driver Reps, Driver Rep Leads, Recruiters, All TPOG View, Team & Franchise)
+    if (currentUser && (currentUser.role.trim() === 'Driver Rep' || currentUser.role.trim() === 'Driver Rep Lead' || currentUser.role.trim() === 'Recruiter' || currentUser.role.trim() === 'Recruiter Team' || currentUser.role.trim() === 'All TPOG View' || currentUser.role.trim() === 'Team' || currentUser.role.trim() === 'Franchise')) {
         filteredDrivers = filteredDrivers.filter(driver => driver.isLocked === true);
     }
 
@@ -1453,7 +1454,7 @@ if (newUserRoleSelect && newUserAccessInput && addAccessBtn && accessTagsContain
     newUserRoleSelect.addEventListener('change', () => {
         const selectedRole = newUserRoleSelect.value;
         
-        if (selectedRole === 'Admin' || selectedRole === 'Onboarder' || selectedRole === 'Driver Rep Lead') {
+        if (selectedRole === 'Admin' || selectedRole === 'Onboarder' || selectedRole === 'Driver Rep Lead' || selectedRole === 'All TPOG View') {
             newUserAccessContainer.classList.add('hidden');
             currentAccessList = [];
             renderTags();
@@ -1848,13 +1849,31 @@ function showMainApp() {
                 if (userRole === 'Driver Rep Lead') return true;
                 if (userRole === 'Recruiter' && userAccessList.includes(driver.recruiter)) return true;
                 if (userRole === 'Recruiter Team' && userAccessList.includes(driver.recruiter_team)) return true;
+                if (userRole === 'All TPOG View' && driver.contract_type === 'TPOG') return true;
                 if (userRole === 'Marketing' && userAccessList.includes(driver.name)) return true;
                 return false;
             });
         }
 
-        const payDates = [...new Set(driversForUser.map(d => d.pay_date && d.pay_date.split('T')[0]))].filter(Boolean).sort().reverse();
+        let payDates = [...new Set(driversForUser.map(d => d.pay_date && d.pay_date.split('T')[0]))].filter(Boolean).sort().reverse();
         
+        // Filter out dates that have no locked TPOG drivers for roles that only see locked data
+        if (currentUser) {
+            const lockedOnlyRoles = ['Driver Rep', 'Driver Rep Lead', 'Recruiter', 'Recruiter Team', 'All TPOG View', 'Team', 'Franchise'];
+            if (lockedOnlyRoles.includes(currentUser.role.trim())) {
+                payDates = payDates.filter(date => {
+                    return driversForUser.some(d => {
+                        // Check if there is at least one TPOG driver for this user on this date that is LOCKED
+                        if (d.pay_date && d.pay_date.split('T')[0] === date && d.contract_type === 'TPOG') {
+                            const lockKey = `${d.id}_${date}`;
+                            return !!allLockedData[lockKey];
+                        }
+                        return false;
+                    });
+                });
+            }
+        }
+
         if (payDates.length > 0) {
             payDateSelect.innerHTML = payDates.map(date => `<option value="${date}">${date}</option>`).join('');
             
@@ -1947,7 +1966,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const navFuelTankLink = document.getElementById('nav-fuel-tank');
             if (navFuelTankLink) navFuelTankLink.style.display = 'none';
             
-            if (userRole !== 'Driver Rep' && userRole !== 'Driver Rep Lead' && userRole !== 'Recruiter' && userRole !== 'Recruiter Team' && userRole !== 'Team' && userRole !== 'Marketing' && userRole !== 'Franchise') {
+            if (userRole !== 'Driver Rep' && userRole !== 'Driver Rep Lead' && userRole !== 'Recruiter' && userRole !== 'Recruiter Team' && userRole !== 'All TPOG View' && userRole !== 'Team' && userRole !== 'Marketing' && userRole !== 'Franchise') {
                 visibleColumnKeys = visibleColumnKeys.filter(key => key !== 'actions');
             }
         }
@@ -1970,7 +1989,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (helpBtn) helpBtn.classList.remove('hidden');
         }
 
-        if (userRole === 'Dispatcher' || userRole === 'Driver Rep' || userRole === 'Driver Rep Lead' || userRole === 'Recruiter' || userRole === 'Recruiter Team' || userRole === 'Franchise') {
+        if (userRole === 'Dispatcher' || userRole === 'Driver Rep' || userRole === 'Driver Rep Lead' || userRole === 'Recruiter' || userRole === 'Recruiter Team' || userRole === 'All TPOG View' || userRole === 'Franchise') {
             const navArchiveLink = document.getElementById('nav-archive');
             if (navArchiveLink) navArchiveLink.style.display = 'none';
             const helpBtn = document.getElementById('marketing-help-btn');
