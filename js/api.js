@@ -135,7 +135,7 @@ export async function fetchDriverData() {
     const result = await fetchWithRetry(DRIVER_DATA_URL, "Driver Data"); 
 
     const formattedData = result.data.map(d => ({
-        id: d.contract_id, name: d.driver_name, driver_rep: d.driver_rep || '-', dispatcher: d.dispatch || '-', team: d.team || '-',
+        id: d.contract_id, name: d.driver_name, driver_rep: d.driver_rep || '-', recruiter: d.recruiter || '-', recruiter_team: d.recruiter_team || '-', dispatcher: d.dispatch || '-', team: d.team || '-',
         franchise: d.franchise || '-', company: d.company || '-', contract_type: d.contract_type || '-',
         weeksOut: 0, milesWeek: d.milesWeek || 0, tenure: d.tenure || 0, gross: d.gross || 0, stubMiles: 0, rpm: d.rpm || 0,
         estimatedNet: d.estimated_net || 0, safetyScore: d.safety_score || 0, speedingAlerts: d.speed_events || 0,
