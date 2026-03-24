@@ -48,7 +48,7 @@ let driversForDate = [];
 let daysTakenIndex = {}; // <-- NEW
 let availableContractTypes = [];
 let orderedColumnKeys = Object.keys(config.columnConfig);
-const defaultHiddenColumns = ['dispatcher', 'team', 'rpm', 'speeding_over11mph', 'speeding_over16mph', 'franchise', 'company', 'pay_delayWks', 'estimatedNet', 'speedingPercentile', 'driver_rep', 'contract_type'];
+const defaultHiddenColumns = ['dispatcher', 'team', 'rpm', 'speeding_over11mph', 'speeding_over16mph', 'franchise', 'company', 'pay_delayWks', 'estimatedNet', 'speedingPercentile', 'driver_rep', 'recruiter', 'recruiter_team', 'contract_type'];
 let visibleColumnKeys = Object.keys(config.columnConfig).filter(key => !defaultHiddenColumns.includes(key));
 let pinnedColumns = { left: ['name'], right: ['totalTpog', 'bonuses', 'penalties', 'escrowDeduct', 'actions'] };
 let activeRowFilter = 'none';
@@ -184,6 +184,8 @@ function filterAndRenderTable() {
             else if (userRole === 'Franchise' && userAccessList.includes(d.franchise)) hasAccess = true;
             else if (userRole === 'Driver Rep' && userAccessList.includes(d.driver_rep) && d.contract_type === 'TPOG') hasAccess = true;
             else if (userRole === 'Driver Rep Lead' && d.contract_type === 'TPOG') hasAccess = true;
+            else if (userRole === 'Recruiter' && userAccessList.includes(d.recruiter) && d.contract_type === 'TPOG') hasAccess = true;
+            else if (userRole === 'Recruiter Team' && userAccessList.includes(d.recruiter_team) && d.contract_type === 'TPOG') hasAccess = true;
             else if (userRole === 'Marketing' && userAccessList.includes(d.name)) hasAccess = true;
             if (!hasAccess) return false;
         }
@@ -217,8 +219,8 @@ function filterAndRenderTable() {
         });
     }
 
-    // Filter for Locked Data (Driver Reps, Driver Rep Leads, Team & Franchise)
-    if (currentUser && (currentUser.role.trim() === 'Driver Rep' || currentUser.role.trim() === 'Driver Rep Lead' || currentUser.role.trim() === 'Team' || currentUser.role.trim() === 'Franchise')) {
+    // Filter for Locked Data (Driver Reps, Driver Rep Leads, Recruiters, Team & Franchise)
+    if (currentUser && (currentUser.role.trim() === 'Driver Rep' || currentUser.role.trim() === 'Driver Rep Lead' || currentUser.role.trim() === 'Recruiter' || currentUser.role.trim() === 'Recruiter Team' || currentUser.role.trim() === 'Team' || currentUser.role.trim() === 'Franchise')) {
         filteredDrivers = filteredDrivers.filter(driver => driver.isLocked === true);
     }
 
@@ -1481,16 +1483,26 @@ if (newUserRoleSelect && newUserAccessInput && addAccessBtn && accessTagsContain
                 placeholderText = 'Select or type a franchise name';
                 accessKey = 'franchise';
                 break;
-            case 'Driver Rep':
-                labelText = 'Driver Rep Name(s)';
-                placeholderText = 'Select or type a driver rep name';
-                accessKey = 'driver_rep';
-                break;
-            case 'Marketing':
-                labelText = 'Driver Name(s)';
-                placeholderText = 'Select or type a driver name';
-                accessKey = 'name';
-                break;
+                case 'Driver Rep':
+                    labelText = 'Driver Rep Name(s)';
+                    placeholderText = 'Select or type a driver rep name';
+                    accessKey = 'driver_rep';
+                    break;
+                case 'Recruiter':
+                    labelText = 'Recruiter Name(s)';
+                    placeholderText = 'Select or type a recruiter name';
+                    accessKey = 'recruiter';
+                    break;
+                case 'Recruiter Team':
+                    labelText = 'Recruiter Team Name(s)';
+                    placeholderText = 'Select or type a recruiter team name';
+                    accessKey = 'recruiter_team';
+                    break;
+                case 'Marketing':
+                    labelText = 'Driver Name(s)';
+                    placeholderText = 'Select or type a driver name';
+                    accessKey = 'name';
+                    break;
         }
 
         newUserAccessLabel.textContent = labelText;
@@ -1834,6 +1846,8 @@ function showMainApp() {
                 if (userRole === 'Franchise' && userAccessList.includes(driver.franchise)) return true;
                 if (userRole === 'Driver Rep' && userAccessList.includes(driver.driver_rep)) return true;
                 if (userRole === 'Driver Rep Lead') return true;
+                if (userRole === 'Recruiter' && userAccessList.includes(driver.recruiter)) return true;
+                if (userRole === 'Recruiter Team' && userAccessList.includes(driver.recruiter_team)) return true;
                 if (userRole === 'Marketing' && userAccessList.includes(driver.name)) return true;
                 return false;
             });
@@ -1933,7 +1947,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const navFuelTankLink = document.getElementById('nav-fuel-tank');
             if (navFuelTankLink) navFuelTankLink.style.display = 'none';
             
-            if (userRole !== 'Driver Rep' && userRole !== 'Driver Rep Lead' && userRole !== 'Team' && userRole !== 'Marketing' && userRole !== 'Franchise') {
+            if (userRole !== 'Driver Rep' && userRole !== 'Driver Rep Lead' && userRole !== 'Recruiter' && userRole !== 'Recruiter Team' && userRole !== 'Team' && userRole !== 'Marketing' && userRole !== 'Franchise') {
                 visibleColumnKeys = visibleColumnKeys.filter(key => key !== 'actions');
             }
         }
@@ -1956,7 +1970,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (helpBtn) helpBtn.classList.remove('hidden');
         }
 
-        if (userRole === 'Dispatcher' || userRole === 'Driver Rep' || userRole === 'Driver Rep Lead' || userRole === 'Franchise') {
+        if (userRole === 'Dispatcher' || userRole === 'Driver Rep' || userRole === 'Driver Rep Lead' || userRole === 'Recruiter' || userRole === 'Recruiter Team' || userRole === 'Franchise') {
             const navArchiveLink = document.getElementById('nav-archive');
             if (navArchiveLink) navArchiveLink.style.display = 'none';
             const helpBtn = document.getElementById('marketing-help-btn');
@@ -2153,6 +2167,8 @@ function processDataForSelectedDate() {
             const originalId = driver.id;
             const originalNote = driver.weeklyNote; // from previous step
             const latestDriverRep = driver.driver_rep; // Preserve latest known driver rep
+            const latestRecruiter = driver.recruiter; // Preserve latest known recruiter
+            const latestRecruiterTeam = driver.recruiter_team; // Preserve latest known recruiter team
             
             // 3. Overwrite the live driver object with the snapshot
             Object.assign(driver, lockedData);
@@ -2162,6 +2178,12 @@ function processDataForSelectedDate() {
             driver.weeklyNote = originalNote;
             if (latestDriverRep !== undefined) {
                 driver.driver_rep = latestDriverRep;
+            }
+            if (latestRecruiter !== undefined) {
+                driver.recruiter = latestRecruiter;
+            }
+            if (latestRecruiterTeam !== undefined) {
+                driver.recruiter_team = latestRecruiterTeam;
             }
             // FIX: We do NOT restore 'isDispatcherReviewed' from live calc. 
             // We assume the value in 'lockedData' (the snapshot) is the correct, frozen status.
