@@ -800,6 +800,9 @@ export function processDriverDataForDate(driversForDate, mileageIndex, settings,
             // Get raw system logs for live checks
             const driverDaysOffHistory = daysTakenIndex[driver.name] || [];
             
+            // Make mileage records accessible for this loop
+            const driverMileageRecords = mileageIndex[driver.name] || [];
+            
             const allRecordsForDriver = allDrivers
                 .filter(d => d.name === driver.name && d.pay_date)
                 .sort((a, b) => new Date(a.pay_date) - new Date(b.pay_date));
@@ -902,7 +905,7 @@ export function processDriverDataForDate(driversForDate, mileageIndex, settings,
                         const statusesForDay = driverDaysOffHistory
                             .filter(log => formatDate(new Date(log.date)) === dayString)
                             .map(log => (log.activity_status || '').toUpperCase());
-                        const combinedLiveStr = statusesForDay.join(' ');
+                        const combinedLiveStr = statusesForDay.length > 0 ? statusesForDay.join(' ') : 'NO DATA';
 
                         const overrideKey = `${driver.name}_${dayString}`;
                         const overrideStatus = dispatcherOverrides[overrideKey];
@@ -910,12 +913,24 @@ export function processDriverDataForDate(driversForDate, mileageIndex, settings,
                         isNotStarted = overrideStatus === 'NOT_STARTED';
                         isContractEnded = (overrideStatus === 'CONTRACT_ENDED' && driver.contract_type !== 'TPOG');
                         
+                        // Get mileage for this historical day
+                        const mileageForDay = driverMileageRecords
+                            .filter(m => m.date.split('T')[0] === dayString)
+                            .reduce((sum, m) => sum + (m.movement || 0), 0);
+
                         if (overrideStatus === 'DAY_OFF') {
                             isDayOff = true;
                         } else if (overrideStatus !== 'CORRECT' && overrideStatus !== undefined) {
                             isDayOff = false; // explicitly active/without load
-                        } else if (combinedLiveStr.includes('DAY_OFF') || combinedLiveStr.includes('TIME_OFF')) {
+                        } else if (combinedLiveStr.includes('DAY_OFF') || combinedLiveStr.includes('TIME_OFF') || combinedLiveStr.includes('DAY OFF')) {
                             isDayOff = true; // System designated off
+                        } else if (!combinedLiveStr.includes('ACTIVE') && !combinedLiveStr.includes('WITHOUT_LOAD') && !combinedLiveStr.includes('NO DATA') && mileageForDay === 0) {
+                            // Catch all for unhandled statuses that result in red UI blocks
+                            isDayOff = true;
+                        }
+
+                        if (mileageForDay > 0 && !combinedLiveStr.includes('DAY_OFF') && !combinedLiveStr.includes('DAY OFF')) {
+                            isDayOff = false;
                         }
                     }
 
@@ -932,11 +947,6 @@ export function processDriverDataForDate(driversForDate, mileageIndex, settings,
                         }
                         if (continuousDayStreak > maxDaysThisWeek) maxDaysThisWeek = continuousDayStreak;
                     }
-                }
-
-                // Override with snapshot's absolute truth if available
-                if (snapshotOffDays !== null) {
-                    daysOffInWeek = snapshotOffDays;
                 }
 
                 // Full Weeks Only Loop Logic
