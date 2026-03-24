@@ -52,6 +52,8 @@ export const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiO
 export const columnConfig = {
     name: { title: 'Driver Name', type: 'text', class: 'text-left font-medium text-slate-100' },
     driver_rep: { title: 'Driver Rep', type: 'text', class: 'text-center' },
+    recruiter: { title: 'Recruiter', type: 'text', class: 'text-center' },
+    recruiter_team: { title: 'Recruiter Team', type: 'text', class: 'text-center' },
     dispatcher: { title: 'Dispatcher', type: 'text', class: 'text-center' },
     team: { title: 'Team', type: 'text', class: 'text-center' },
     franchise: { title: 'Franchise', type: 'text', class: 'text-center' },
