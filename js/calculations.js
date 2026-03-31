@@ -1011,20 +1011,23 @@ export function processDriverDataForDate(driversForDate, mileageIndex, settings,
                             .filter(m => m.date.split('T')[0] === dayString)
                             .reduce((sum, m) => sum + (m.movement || 0), 0);
 
-                        if (overrideStatus === 'DAY_OFF') {
-                            isDayOff = true;
-                        } else if (overrideStatus !== 'CORRECT' && overrideStatus !== undefined) {
-                            isDayOff = false; // explicitly active
-                        } else if (combinedLiveStr.includes('DAY_OFF') || combinedLiveStr.includes('TIME_OFF') || combinedLiveStr.includes('DAY OFF')) {
-                            isDayOff = true; // System designated off
-                        } else if (!combinedLiveStr.includes('ACTIVE') && !combinedLiveStr.includes('NO DATA') && !isNotStarted && !isContractEnded && mileageForDay === 0) {
-                            // Catch all for unhandled statuses that result in red UI blocks (skip if contract is inactive)
-                            isDayOff = true;
-                        }
-
-                        if (mileageForDay > 0 && !combinedLiveStr.includes('DAY_OFF') && !combinedLiveStr.includes('DAY OFF')) {
-                            isDayOff = false;
-                        }
+                            if (overrideStatus === 'DAY_OFF') {
+                                isDayOff = true;
+                            } else if (overrideStatus !== 'CORRECT' && overrideStatus !== undefined) {
+                                isDayOff = false; // explicitly active
+                            } else {
+                                if (combinedLiveStr.includes('DAY_OFF') || combinedLiveStr.includes('TIME_OFF') || combinedLiveStr.includes('DAY OFF')) {
+                                    isDayOff = true; // System designated off
+                                } else if (!combinedLiveStr.includes('ACTIVE') && !combinedLiveStr.includes('NO DATA') && !isNotStarted && !isContractEnded && mileageForDay === 0) {
+                                    // Catch all for unhandled statuses that result in red UI blocks (skip if contract is inactive)
+                                    isDayOff = true;
+                                }
+    
+                                // If not explicitly overridden by dispatch, moving the truck makes it an active day
+                                if (mileageForDay > 0 && !combinedLiveStr.includes('DAY_OFF') && !combinedLiveStr.includes('DAY OFF')) {
+                                    isDayOff = false;
+                                }
+                            }
                     }
 
                     if (isDayOff) daysOffInWeek++;
