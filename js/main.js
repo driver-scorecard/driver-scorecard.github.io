@@ -709,8 +709,13 @@ userProfilesTableBody.addEventListener('click', async (e) => {
                     // Compare against the same formatted string for daily accrual.
                     const numericValue = parseFloat(driverForDate.weeksOut);
                     originalValue = isNaN(numericValue) ? '0.0' : numericValue.toFixed(1);
-                }
-                else {
+                } else if (key === 'ignoreFuel') {
+                    const autoIgnored = originalReportData.bonuses?.['Fuel Efficiency']?.ignored && driverForDate.ignoreFuel !== false && driverForDate.ignoreFuel !== 'false';
+                    originalValue = autoIgnored || driverForDate.ignoreFuel === true || driverForDate.ignoreFuel === 'true';
+                } else if (key === 'ignoreGrossBonus') {
+                    const autoIgnored = originalReportData.bonuses?.['Gross Target']?.ignored && driverForDate.ignoreGrossBonus !== false && driverForDate.ignoreGrossBonus !== 'false';
+                    originalValue = autoIgnored || driverForDate.ignoreGrossBonus === true || driverForDate.ignoreGrossBonus === 'true';
+                } else {
                     // For all other fields, use the original driver data.
                     originalValue = driverForDate[key];
                 }
