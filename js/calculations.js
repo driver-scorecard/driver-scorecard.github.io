@@ -271,7 +271,6 @@ export function getDriverReportData(driver, settings, driversForDate = []) {
         // Auto-ignore if the week is partial AND the bonus is a penalty (negative)
         if (driver.hasNotStartedInWeek && fuelBonus < 0 && !userExplicitlyUncheckedFuel) {
             shouldIgnoreFuel = true;
-            driver.ignoreFuel = true; // Update driver object so edit panel shows it checked
             infoText = 'Penalty ignored (partial week).';
         }
 
@@ -325,7 +324,6 @@ export function getDriverReportData(driver, settings, driversForDate = []) {
         // Auto-ignore if the week is partial AND the bonus is a penalty (negative)
         if (driver.hasNotStartedInWeek && grossBonus < 0 && !userExplicitlyUncheckedGross) {
             shouldIgnoreGross = true;
-            driver.ignoreGrossBonus = true; // Update driver object so edit panel shows it checked
         }
 
         if (shouldIgnoreGross) {
