@@ -265,7 +265,17 @@ export function getDriverReportData(driver, settings, driversForDate = []) {
             infoText = 'No MPG data available to calculate bonus.';
         }
         
-        if (ignoreFuel) {
+        let shouldIgnoreFuel = ignoreFuel;
+        const userExplicitlyUncheckedFuel = driver.ignoreFuel === false || driver.ignoreFuel === 'false';
+        
+        // Auto-ignore if the week is partial AND the bonus is a penalty (negative)
+        if (driver.hasNotStartedInWeek && fuelBonus < 0 && !userExplicitlyUncheckedFuel) {
+            shouldIgnoreFuel = true;
+            driver.ignoreFuel = true; // Update driver object so edit panel shows it checked
+            infoText = 'Penalty ignored (partial week).';
+        }
+
+        if (shouldIgnoreFuel) {
             report.bonuses['Fuel Efficiency'] = { bonus: 0, potentialBonus: fuelBonus, infoText: infoText, ignored: true };
         } else {
             report.bonuses['Fuel Efficiency'] = { bonus: fuelBonus, infoText: infoText };
@@ -309,7 +319,16 @@ export function getDriverReportData(driver, settings, driversForDate = []) {
             }
         }
 
-        if (ignoreGross) {
+        let shouldIgnoreGross = ignoreGross;
+        const userExplicitlyUncheckedGross = driver.ignoreGrossBonus === false || driver.ignoreGrossBonus === 'false';
+        
+        // Auto-ignore if the week is partial AND the bonus is a penalty (negative)
+        if (driver.hasNotStartedInWeek && grossBonus < 0 && !userExplicitlyUncheckedGross) {
+            shouldIgnoreGross = true;
+            driver.ignoreGrossBonus = true; // Update driver object so edit panel shows it checked
+        }
+
+        if (shouldIgnoreGross) {
             report.bonuses['Gross Target'] = { bonus: 0, potentialBonus: grossBonus, ignored: true };
         } else {
             report.bonuses['Gross Target'] = { bonus: grossBonus };
@@ -986,8 +1005,8 @@ export function processDriverDataForDate(driversForDate, mileageIndex, settings,
                         const overrideStatus = dispatcherOverrides[overrideKey];
                         
                         // Set boolean flags
-                        isNotStarted = overrideStatus === 'NOT_STARTED' || combinedLiveStr === 'NOT_STARTED';
-                        isContractEnded = overrideStatus === 'CONTRACT_ENDED' || combinedLiveStr === 'CONTRACT_ENDED';
+                        isNotStarted = overrideStatus === 'NOT_STARTED' || combinedLiveStr.includes('NOT_STARTED');
+                        isContractEnded = overrideStatus === 'CONTRACT_ENDED' || combinedLiveStr.includes('CONTRACT_ENDED');
                         
                         // Get mileage for this historical day
                         const mileageForDay = driverMileageRecords
@@ -1052,6 +1071,8 @@ export function processDriverDataForDate(driversForDate, mileageIndex, settings,
                     }
                     // Write live off days count
                     driver.offDays = daysOffInWeek;
+                    // Tag the driver if they have NOT_STARTED this week (ignore negative gross/fuel if true)
+                    driver.hasNotStartedInWeek = hasNotStartedInWeek; 
                     break;
                 }
 
