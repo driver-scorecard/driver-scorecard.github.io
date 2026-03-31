@@ -2422,38 +2422,50 @@ function initDispatcherView(
                 <h2 class="text-xl font-semibold text-white mb-4">Confirm Activity for ${selectedDriverName}</h2>
                 <div class="grid grid-cols-7 gap-3">`;
 
-        let lastKnownSystemStatus = 'NO_DATA';
+                let lastKnownSystemStatus = 'NO_DATA';
 
-        for (let i = 0; i < 7; i++) {
-            const currentDay = new Date(tuesday);
-            currentDay.setUTCDate(tuesday.getUTCDate() + i);
-            const dayString = currentDay.toISOString().split('T')[0];
-            const dayData = driver.activity[dayString] || { prologMiles: 0, systemStatus: 'NO DATA' };
-            
-            // --- NEW: Determine Default Selection ---
-            // 1. Normalize system status (e.g. "DAY OFF" -> "DAY_OFF")
-            let systemStatusNormalized = (dayData.systemStatus || '').replace(/ /g, '_');
-            
-            // Map WITHOUT_LOAD to ACTIVE directly
-            if (systemStatusNormalized.includes('WITHOUT_LOAD')) systemStatusNormalized = 'ACTIVE';
-
-            // Carry-forward logic
-            if ((systemStatusNormalized === 'NO_DATA' || systemStatusNormalized === '') && lastKnownSystemStatus !== 'NO_DATA') {
-                systemStatusNormalized = lastKnownSystemStatus;
-                dayData.systemStatus = lastKnownSystemStatus.replace(/_/g, ' '); // Update UI card display
-            } else if (systemStatusNormalized !== 'NO_DATA' && systemStatusNormalized !== '') {
-                lastKnownSystemStatus = systemStatusNormalized;
-            }
-
-            // 2. Map irregular system statuses to a valid option
-            if (!statusOptions.includes(systemStatusNormalized)) {
-                if (systemStatusNormalized.includes('ACTIVE')) systemStatusNormalized = 'ACTIVE';
-                else if (systemStatusNormalized.includes('DAY_OFF')) systemStatusNormalized = 'DAY_OFF';
-                else systemStatusNormalized = 'ACTIVE'; // Fallback
-            }
-
-            // 3. Check for saved override
-            const savedStatus = savedOverrides[`${selectedDriverName}_${dayString}`];
+                for (let i = 0; i < 7; i++) {
+                    const currentDay = new Date(tuesday);
+                    currentDay.setUTCDate(tuesday.getUTCDate() + i);
+                    const dayString = currentDay.toISOString().split('T')[0];
+                    const dayData = driver.activity[dayString] || { prologMiles: 0, systemStatus: 'NO DATA' };
+                    
+                    // --- NEW: Determine Default Selection ---
+                    // 1. Normalize system status (e.g. "DAY OFF" -> "DAY_OFF")
+                    let systemStatusNormalized = (dayData.systemStatus || '').replace(/ /g, '_');
+                    
+                    // Map WITHOUT_LOAD to ACTIVE directly
+                    if (systemStatusNormalized.includes('WITHOUT_LOAD')) systemStatusNormalized = 'ACTIVE';
+        
+                    // Check Contract Status
+                    const contractStatus = calc.getContractStatusForDay(selectedDriverName, dayString, allContracts);
+        
+                    if (contractStatus !== 'ACTIVE') {
+                        systemStatusNormalized = contractStatus;
+                        dayData.systemStatus = contractStatus.replace(/_/g, ' ');
+                        lastKnownSystemStatus = 'NO_DATA'; // Reset carry-forward
+                    } else {
+                        // Carry-forward logic
+                        if ((systemStatusNormalized === 'NO_DATA' || systemStatusNormalized === '') && lastKnownSystemStatus !== 'NO_DATA') {
+                            systemStatusNormalized = lastKnownSystemStatus;
+                            dayData.systemStatus = lastKnownSystemStatus.replace(/_/g, ' '); // Update UI card display
+                        } else if (systemStatusNormalized !== 'NO_DATA' && systemStatusNormalized !== '') {
+                            lastKnownSystemStatus = systemStatusNormalized;
+                        }
+                    }
+        
+                    // 2. Map irregular system statuses to a valid option
+                    if (!statusOptions.includes(systemStatusNormalized)) {
+                        if (systemStatusNormalized.includes('ACTIVE')) systemStatusNormalized = 'ACTIVE';
+                        else if (systemStatusNormalized.includes('DAY_OFF')) systemStatusNormalized = 'DAY_OFF';
+                        else systemStatusNormalized = 'ACTIVE'; // Fallback
+                    }
+        
+                    // Update display to match the mapped valid option if it was irregular but now mapped
+                    dayData.systemStatus = systemStatusNormalized.replace(/_/g, ' ');
+        
+                    // 3. Check for saved override
+                    const savedStatus = savedOverrides[`${selectedDriverName}_${dayString}`];
             
             // 4. Determine what should be selected in the UI
             // If saved as 'CORRECT' (legacy), we show the system status.
