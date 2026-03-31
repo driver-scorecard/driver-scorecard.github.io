@@ -765,26 +765,14 @@ userProfilesTableBody.addEventListener('click', async (e) => {
 
                 if (driverToUpdate) {
                     // 2. Apply the manually edited values to this driver object
+                    // This correctly adds manual overrides as own properties (e.g., escrowDeduct)
                     updates.forEach(update => {
                         const numericValue = parseFloat(update.newValue);
                         driverToUpdate[update.fieldName] = isNaN(numericValue) ? update.newValue : numericValue;
                     });
 
-                    // 3. Re-calculate *only this driver's* report data
-                    // We pass 'processedDriversForDate' so percentiles are still accurate
-                    const newReportData = calc.getDriverReportData(driverToUpdate, settings, processedDriversForDate);
-
-                    // 4. Apply the new calculated values (like totalTpog, bonuses)
-                    Object.assign(driverToUpdate, newReportData);
-                    
-                    // 5. Re-apply the manual overrides on top of the new report data
-                    // (because getDriverReportData may have reset them)
-                    updates.forEach(update => {
-                        const numericValue = parseFloat(update.newValue);
-                        driverToUpdate[update.fieldName] = isNaN(numericValue) ? update.newValue : numericValue;
-                    });
-
-                    // 6. Now, just re-render the table. This will be instant.
+                    // 3. Now, just re-render the table. This will be instant.
+                    // The table dynamically calculates final report data, so we don't stamp it here.
                     filterAndRenderTable();
 
                 } else {
@@ -2571,6 +2559,7 @@ function initDispatcherView(
             // --- Update local override cache ---
             overridesToSave.forEach(ov => {
                 savedOverrides[`${ov.driverName}_${ov.date}`] = ov.status;
+                dispatcherOverrides[`${ov.driverName}_${ov.date}`] = ov.status; // Update global state
             });
             currentOverrides = {};
 
@@ -2599,8 +2588,6 @@ function initDispatcherView(
                 // (and any other raw data fields that get reset)
 
                 // 2. Run the "Weeks Out" calculation on the *base* driver.
-                // This will incorrectly set percentiles to 0 on the 'recalculatedDriver' object,
-                // but we only want its activity data.
                 const [recalculatedDriver] = calc.processDriverDataForDate(
                     [driverInBaseList], 
                     mileageIndex, 
@@ -2609,7 +2596,10 @@ function initDispatcherView(
                     overriddenDistances, 
                     daysTakenIndex, 
                     savedOverrides,
-                    allDrivers
+                    allDrivers,
+                    mpgOverrides,
+                    allLockedData,
+                    allContracts
                 );
 
                 // 3. Apply ONLY the activity-related metrics to our live "processed" driver
@@ -2628,15 +2618,9 @@ function initDispatcherView(
                 driverInProcessedList.mpg = originalMpg;
                 driverInProcessedList.speedingAlerts = originalSpeedingAlerts;
 
-                // 5. Now, re-calculate the final report (Bonuses, Penalties, Final %)
-                // The driver object now has the *new* Weeks Out but the *old* (correct) percentiles.
-                const newReportData = calc.getDriverReportData(driverInProcessedList, settings, processedDriversForDate);
-                
-                // 6. Apply the new report data (Bonuses, Final %, Escrow)
-                // This function does not touch percentiles, so they are safe.
-                Object.assign(driverInProcessedList, newReportData);
-
-                // 7. Re-render the main table. This will be instant and correct.
+                // 5. Re-render the main table. This will be instant and correct.
+                // The table dynamically calculates final report data (like escrowDeduct),
+                // so we MUST NOT stamp the calculated data directly onto the object.
                 filterAndRenderTable();
 
             } else {
