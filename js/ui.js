@@ -1410,6 +1410,11 @@ export function openEditPanel(driverId, state) {
 
     // --- METRIC EXCLUSIONS SECTION ---
     const isTrue = (val) => val === true || val === 'true';
+    const isFalse = (val) => val === false || val === 'false';
+
+    // Check if auto-ignored by the report, but ONLY if not explicitly unchecked by user
+    const fuelAutoIgnored = reportData.bonuses?.['Fuel Efficiency']?.ignored && !isFalse(driver.ignoreFuel);
+    const grossAutoIgnored = reportData.bonuses?.['Gross Target']?.ignored && !isFalse(driver.ignoreGrossBonus);
     
     const exclusionFieldsHtml = `
         <div class="mt-2 border-t border-slate-700 pt-4 space-y-4">
@@ -1431,7 +1436,7 @@ export function openEditPanel(driverId, state) {
                 </div>
                 <div class="flex items-center justify-between">
                     <label class="text-xs text-slate-400" for="edit-ignoreFuel">Ignore Fuel</label>
-                    <input type="checkbox" id="edit-ignoreFuel" class="edit-input h-4 w-4 rounded border-slate-600 bg-slate-700 text-blue-600" style="width: auto;" ${isTrue(driver.ignoreFuel) ? 'checked' : ''}>
+                    <input type="checkbox" id="edit-ignoreFuel" class="edit-input h-4 w-4 rounded border-slate-600 bg-slate-700 text-blue-600" style="width: auto;" ${fuelAutoIgnored || isTrue(driver.ignoreFuel) ? 'checked' : ''}>
                 </div>
                 <div class="flex items-center justify-between">
                     <label class="text-xs text-slate-400" for="edit-ignoreTenure">Ignore Tenure</label>
@@ -1439,7 +1444,7 @@ export function openEditPanel(driverId, state) {
                 </div>
                 <div class="flex items-center justify-between">
                     <label class="text-xs text-slate-400" for="edit-ignoreGrossBonus">Ignore Gross</label>
-                    <input type="checkbox" id="edit-ignoreGrossBonus" class="edit-input h-4 w-4 rounded border-slate-600 bg-slate-700 text-blue-600" style="width: auto;" ${isTrue(driver.ignoreGrossBonus) ? 'checked' : ''}>
+                    <input type="checkbox" id="edit-ignoreGrossBonus" class="edit-input h-4 w-4 rounded border-slate-600 bg-slate-700 text-blue-600" style="width: auto;" ${grossAutoIgnored || isTrue(driver.ignoreGrossBonus) ? 'checked' : ''}>
                 </div>
             </div>
 
