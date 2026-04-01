@@ -956,6 +956,16 @@ userProfilesTableBody.addEventListener('click', async (e) => {
 
         if (e.target.closest('.lock-btn')) {
             e.stopPropagation();
+            
+            const isAdmin = currentUser && currentUser.role.trim() === 'Admin';
+            const currentDayOfWeek = new Date().getDay(); // 0=Sun, 1=Mon, 2=Tue, etc.
+            const isLockDay = currentDayOfWeek === 1 || currentDayOfWeek === 2;
+            
+            if (!isAdmin && !isLockDay) {
+                ui.showCustomAlert('Locking is only permitted on Mondays and Tuesdays once the pay week is over.', 'Action Not Allowed');
+                return;
+            }
+
             const driver = processedDriversForDate.find(d => d.id == targetElement.dataset.driverId);
             if(driver) {
                 const confirmed = await showCustomConfirm(
@@ -1086,6 +1096,7 @@ userProfilesTableBody.addEventListener('click', async (e) => {
     tooltipHandler(event, tableBody);
     tooltipHandler(event, activityHistoryContent);
     tooltipHandler(event, settingsContent);
+    tooltipHandler(event, document.getElementById('dispatcher-view'));
     
     tableHead.addEventListener('click', async e => {
         // --- NEW: Handle Select All ---
@@ -1099,6 +1110,16 @@ userProfilesTableBody.addEventListener('click', async (e) => {
         // --- NEW: Handle Bulk Lock Button ---
         if (e.target.id === 'bulk-lock-btn') {
             e.stopPropagation();
+            
+            const isAdmin = currentUser && currentUser.role.trim() === 'Admin';
+            const currentDayOfWeek = new Date().getDay(); // 0=Sun, 1=Mon, 2=Tue, etc.
+            const isLockDay = currentDayOfWeek === 1 || currentDayOfWeek === 2;
+            
+            if (!isAdmin && !isLockDay) {
+                ui.showCustomAlert('Locking is only permitted on Mondays and Tuesdays once the pay week is over.', 'Action Not Allowed');
+                return;
+            }
+
             const checkboxes = document.querySelectorAll('.driver-select-checkbox:checked');
             const selectedIds = Array.from(checkboxes).map(cb => cb.value);
 
@@ -1904,9 +1925,7 @@ function showMainApp() {
     if (mainAppContainer) mainAppContainer.style.display = 'block';
     
     const userRole = currentUser ? currentUser.role.trim() : '';
-    if (userRole === 'Dispatcher' || userRole === 'Team') {
-        switchView('dispatcher');
-    } else if (userRole === 'Onboarder') {
+    if (userRole === 'Onboarder') {
         switchView('archive');
     } else {
         switchView('table');
@@ -2028,8 +2047,9 @@ document.addEventListener('DOMContentLoaded', () => {
         loginBtn.disabled = true;
         loginError.classList.add('hidden');
         loginBtn.innerHTML = `
-            <svg class="spinner-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
-            <span>Signing in...</span>
+            <div class="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-[shimmer_1s_infinite]"></div>
+            <svg class="animate-[spin_1s_linear_infinite] relative z-10" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+            <span class="relative z-10">Signing in...</span>
         `;
 
         const email = usernameInput.value;
@@ -2045,19 +2065,11 @@ document.addEventListener('DOMContentLoaded', () => {
             loginError.textContent = result.message || 'Invalid email or password.';
             loginError.classList.remove('hidden');
             loginBtn.disabled = false;
-            loginBtn.innerHTML = `<span>Sign In</span>`;
-        }
-    }
-
-    // --- Create dynamic background effects ---
-    const headlightsContainer = document.getElementById('headlights-container');
-    if (headlightsContainer) {
-        for (let i = 0; i < 15; i++) {
-            const headlight = document.createElement('div');
-            headlight.className = 'headlight';
-            headlight.style.top = `${i * 160}px`;
-            headlight.style.animationDelay = `${i * 0.15}s`;
-            headlightsContainer.appendChild(headlight);
+            loginBtn.innerHTML = `
+                <div class="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-[shimmer_1s_infinite]"></div>
+                <span class="relative z-10">Access Dashboard</span>
+                <svg class="h-4 w-4 relative z-10 group-hover:translate-x-1 transition-transform" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+            `;
         }
     }
 
@@ -2315,12 +2327,17 @@ function initDispatcherView(
 
     function renderDriverList() {
         const searchTerm = searchInput.value.toLowerCase();
-        if (!searchTerm) {
-            driverListContainer.innerHTML = `<p class="text-center text-sm text-slate-500 py-4">Enter a name to see drivers.</p>`;
-            return;
-        }
+        const selectedDateStr = payDateSelect.value;
+        
+        // Find which drivers actually exist for this specific pay week and are TPOG
+        const validDriversForWeek = new Set(
+            allDrivers
+                .filter(d => d.pay_date && d.pay_date.split('T')[0] === selectedDateStr && d.contract_type === 'TPOG')
+                .map(d => d.name)
+        );
         
         const filteredDrivers = Object.values(allDriverData)
+            .filter(d => isTutorialMode || validDriversForWeek.has(d.name)) // Ensure they belong to this week
             .filter(d => {
                 // TUTORIAL FIX: Bypass access control when in tutorial mode.
                 if (!isTutorialMode && currentUser && currentUser.role && currentUser.role.trim() !== 'Admin') {
@@ -2335,12 +2352,18 @@ function initDispatcherView(
             })
             .sort((a, b) => a.name.localeCompare(b.name));
 
+        // --- NEW: Update the Driver List Header with the count ---
+        const listHeader = document.querySelector('#driver-list-container').previousElementSibling;
+        if (listHeader && listHeader.tagName === 'H3') {
+            listHeader.textContent = `Driver List (${filteredDrivers.length})`;
+        }
+        // ---------------------------------------------------------
+
         if (filteredDrivers.length === 0) {
-            driverListContainer.innerHTML = `<p class="text-center text-sm text-slate-500 py-4">No TPOG drivers found.</p>`;
+            driverListContainer.innerHTML = `<p class="text-center text-sm text-slate-500 py-4">No TPOG drivers found for this week.</p>`;
             return;
         }
 
-        const selectedDateStr = payDateSelect.value;
         const monday = new Date(selectedDateStr + 'T12:00:00Z');
         monday.setUTCDate(monday.getUTCDate() - (monday.getUTCDay() + 6) % 7);
 
@@ -2352,8 +2375,11 @@ function initDispatcherView(
             });
             return `
                 <div class="driver-list-item flex justify-between items-center p-2 rounded-md cursor-pointer hover:bg-slate-700 transition-colors ${selectedDriverName === driver.name ? 'active' : ''}" data-driver-name="${driver.name}">
-                    <span class="font-medium text-sm">${driver.name}</span>
-                    ${isWeekConfirmed ? `<div title="Reviewed"><svg class="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" /></svg></div>` : ''}
+                    <span class="font-medium text-sm flex items-center gap-2">
+                        ${!isWeekConfirmed ? `<span class="h-1.5 w-1.5 rounded-full bg-blue-400" title="Needs Review"></span>` : ''}
+                        ${driver.name}
+                    </span>
+                    ${isWeekConfirmed ? `<div title="Reviewed"><svg class="h-5 w-5 text-emerald-500/80" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg></div>` : ''}
                 </div>`;
         }).join('');
 
@@ -2410,89 +2436,123 @@ function initDispatcherView(
         // --- NEW: Options without CORRECT ---
         const statusOptions = ['ACTIVE', 'DAY_OFF', 'NOT_STARTED', 'CONTRACT_ENDED'];
         
-        let weekHtml = `
-            <div>
-                <h2 class="text-xl font-semibold text-white mb-4">Confirm Activity for ${selectedDriverName}</h2>
-                <div class="grid grid-cols-7 gap-3">`;
+       // --- NEW: Fetch detailed stats for the summary panel ---
+       const detailedDriver = processedDriversForDate.find(d => d.name === selectedDriverName && d.pay_date.split('T')[0] === selectedDateStr);
+       let summaryHtml = '';
+       if (detailedDriver) {
+           const report = detailedDriver.isLocked ? detailedDriver : calc.getDriverReportData(detailedDriver, settings, processedDriversForDate);
+           
+           const gross = Math.round(detailedDriver.gross || 0);
+           const miles = Math.round(detailedDriver.distanceSource === 'samsaraDistance' ? (detailedDriver.samsaraDistance || 0) : (detailedDriver.milesWeek || 0));
+           const weeksOut = (detailedDriver.weeksOut || 0).toFixed(1);
+           const availableOffDays = (detailedDriver.isLocked ? detailedDriver.availableOffDays : (detailedDriver.hasOwnProperty('availableOffDays') ? detailedDriver.availableOffDays : report.availableOffDays)) || 0;
+           const escrowDeduct = detailedDriver.isLocked ? (detailedDriver.escrowDeduct || 0) : (detailedDriver.hasOwnProperty('escrowDeduct') ? detailedDriver.escrowDeduct : report.escrowDeduct) || 0;
+           const finalTpog = detailedDriver.isLocked ? (detailedDriver.totalTpog || 0) : (report.totalTpog || 0);
 
-                let lastKnownSystemStatus = 'NO_DATA';
+           summaryHtml = `
+               <div class="bg-slate-800/60 p-4 rounded-xl border border-slate-700 mb-6 flex flex-wrap gap-4 sm:gap-6 items-center justify-between shadow-inner">
+                   <div class="flex flex-col"><span class="text-[10px] text-slate-400 uppercase tracking-wider font-bold">Est. Gross</span><span class="text-lg font-bold text-white">$${gross.toLocaleString()}</span></div>
+                   <div class="flex flex-col"><span class="text-[10px] text-slate-400 uppercase tracking-wider font-bold">Miles</span><span class="text-lg font-bold text-white">${miles.toLocaleString()}</span></div>
+                   <div class="flex flex-col"><span class="text-[10px] text-slate-400 uppercase tracking-wider font-bold">Weeks Out</span><span class="text-lg font-bold text-white">${weeksOut}</span></div>
+                   <div class="flex flex-col"><span class="text-[10px] text-slate-400 uppercase tracking-wider font-bold">Available Off Days</span><span class="text-lg font-bold text-white">${availableOffDays}</span></div>
+                   <div class="flex flex-col"><span class="text-[10px] text-slate-400 uppercase tracking-wider font-bold">Escrow Deduct</span><span class="text-lg font-bold ${escrowDeduct > 0 ? 'text-red-400' : 'text-slate-300'}">$${escrowDeduct}</span></div>
+                   <div class="flex flex-col border-l border-slate-600 pl-4 sm:pl-6">
+                       <div class="flex items-center gap-1.5">
+                           <span class="text-[10px] text-slate-400 uppercase tracking-wider font-bold">Current Final %</span>
+                           <div class="tooltip-container cursor-help" data-tooltip="This is not the final percent. Changes might occur during the payroll process before the week is locked.">
+                               <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-amber-500 hover:text-amber-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                   <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                               </svg>
+                           </div>
+                       </div>
+                       <span class="text-xl font-black text-blue-400">${finalTpog.toFixed(1)}%</span>
+                   </div>
+               </div>
+           `;
+       }
+       // -------------------------------------------------------
 
-                for (let i = 0; i < 7; i++) {
-                    const currentDay = new Date(tuesday);
-                    currentDay.setUTCDate(tuesday.getUTCDate() + i);
-                    const dayString = currentDay.toISOString().split('T')[0];
-                    const dayData = driver.activity[dayString] || { prologMiles: 0, systemStatus: 'NO DATA' };
-                    
-                    // --- NEW: Determine Default Selection ---
-                    // 1. Normalize system status (e.g. "DAY OFF" -> "DAY_OFF")
-                    let systemStatusNormalized = (dayData.systemStatus || '').replace(/ /g, '_');
-                    
-                    // Map WITHOUT_LOAD to ACTIVE directly
-                    if (systemStatusNormalized.includes('WITHOUT_LOAD')) systemStatusNormalized = 'ACTIVE';
-        
-                    // Check Contract Status
-                    const contractStatus = calc.getContractStatusForDay(selectedDriverName, dayString, allContracts);
-        
-                    if (contractStatus !== 'ACTIVE') {
-                        systemStatusNormalized = contractStatus;
-                        dayData.systemStatus = contractStatus.replace(/_/g, ' ');
-                        lastKnownSystemStatus = 'NO_DATA'; // Reset carry-forward
-                    } else {
-                        // Carry-forward logic
-                        if ((systemStatusNormalized === 'NO_DATA' || systemStatusNormalized === '') && lastKnownSystemStatus !== 'NO_DATA') {
-                            systemStatusNormalized = lastKnownSystemStatus;
-                            dayData.systemStatus = lastKnownSystemStatus.replace(/_/g, ' '); // Update UI card display
-                        } else if (systemStatusNormalized !== 'NO_DATA' && systemStatusNormalized !== '') {
-                            lastKnownSystemStatus = systemStatusNormalized;
-                        }
-                    }
-        
-                    // 2. Map irregular system statuses to a valid option
-                    if (!statusOptions.includes(systemStatusNormalized)) {
-                        if (systemStatusNormalized.includes('ACTIVE')) systemStatusNormalized = 'ACTIVE';
-                        else if (systemStatusNormalized.includes('DAY_OFF')) systemStatusNormalized = 'DAY_OFF';
-                        else systemStatusNormalized = 'ACTIVE'; // Fallback
-                    }
-        
-                    // Update display to match the mapped valid option if it was irregular but now mapped
-                    dayData.systemStatus = systemStatusNormalized.replace(/_/g, ' ');
-        
-                    // 3. Check for saved override
-                    const savedStatus = savedOverrides[`${selectedDriverName}_${dayString}`];
-            
-            // 4. Determine what should be selected in the UI
-            // If saved as 'CORRECT' (legacy), we show the system status.
-            // If saved as specific status, we show that.
-            // If not saved, we show system status.
-            let selectedValue = savedStatus;
-            if (!selectedValue || selectedValue === 'CORRECT') {
-                selectedValue = systemStatusNormalized;
-            }
-            // ----------------------------------------
+       let weekHtml = `
+           <div>
+               <h2 class="text-xl font-semibold text-white mb-4">Confirm Activity for ${selectedDriverName}</h2>
+               ${summaryHtml}
+               <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2 lg:gap-3">`;
 
-            // Logic to color the card (If saved and explicit, show green. If just CORRECT legacy, show standard)
-            const cardClass = savedStatus && savedStatus !== 'CORRECT' ? 'status-confirmed' : 'border-slate-700';
+       let lastKnownSystemStatus = 'NO_DATA';
 
-            weekHtml += `
-                <div id="day-card-${dayString}" class="day-card bg-slate-800 border-2 ${cardClass} rounded-lg p-4 shadow-xl shadow-black/20 hover:ring-2 hover:ring-blue-500 transition-all flex flex-col">
-                    <div class="flex-grow">
-                        <p class="font-bold text-white text-center">${currentDay.toLocaleDateString(undefined, { weekday: 'long' })}</p>
-                        <p class="text-sm text-slate-400 text-center">${dayString}</p>
-                        <div class="mt-4 space-y-1 text-sm">
-                            <p class="min-h-[40px]"><span class="font-semibold text-slate-400">Status:</span> <span class="text-blue-400 font-medium">${dayData.systemStatus}</span></p>
-                            <p><span class="font-semibold text-slate-400">Miles:</span> ${Math.round(dayData.prologMiles)} mi</p>
-                        </div>
-                    </div>
-                    <div class="mt-4 flex-shrink-0">
-                        <label class="text-xs font-medium text-slate-400">Confirmation</label>
-                        <select data-date="${dayString}" class="status-select w-full mt-1 py-1 px-2 border border-slate-600 bg-slate-700 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 text-sm" ${isWeekVerified ? 'disabled' : ''}>
-                            ${statusOptions.map(opt => `<option value="${opt}" ${selectedValue === opt ? 'selected' : ''}>${opt.replace(/_/g, ' ')}</option>`).join('')}
-                        </select>
-                    </div>
-                </div>`;
-        }
-        weekHtml += `</div></div>`;
-        activityArea.innerHTML = weekHtml;
+       for (let i = 0; i < 7; i++) {
+           const currentDay = new Date(tuesday);
+           currentDay.setUTCDate(tuesday.getUTCDate() + i);
+           const dayString = currentDay.toISOString().split('T')[0];
+           const dayData = driver.activity[dayString] || { prologMiles: 0, systemStatus: 'NO DATA' };
+           
+           // Normalize system status
+           let systemStatusNormalized = (dayData.systemStatus || '').replace(/ /g, '_');
+           if (systemStatusNormalized.includes('WITHOUT_LOAD')) systemStatusNormalized = 'ACTIVE';
+
+           // Check Contract Status
+           const contractStatus = calc.getContractStatusForDay(selectedDriverName, dayString, allContracts);
+
+           if (contractStatus !== 'ACTIVE') {
+               systemStatusNormalized = contractStatus;
+               dayData.systemStatus = contractStatus.replace(/_/g, ' ');
+               lastKnownSystemStatus = 'NO_DATA'; // Reset carry-forward
+           } else {
+               // Carry-forward logic
+               if ((systemStatusNormalized === 'NO_DATA' || systemStatusNormalized === '') && lastKnownSystemStatus !== 'NO_DATA') {
+                   systemStatusNormalized = lastKnownSystemStatus;
+                   dayData.systemStatus = lastKnownSystemStatus.replace(/_/g, ' '); // Update UI card display
+               } else if (systemStatusNormalized !== 'NO_DATA' && systemStatusNormalized !== '') {
+                   lastKnownSystemStatus = systemStatusNormalized;
+               }
+           }
+
+           if (!statusOptions.includes(systemStatusNormalized)) {
+               if (systemStatusNormalized.includes('ACTIVE')) systemStatusNormalized = 'ACTIVE';
+               else if (systemStatusNormalized.includes('DAY_OFF')) systemStatusNormalized = 'DAY_OFF';
+               else systemStatusNormalized = 'ACTIVE'; // Fallback
+           }
+
+           dayData.systemStatus = systemStatusNormalized.replace(/_/g, ' ');
+
+           const savedStatus = savedOverrides[`${selectedDriverName}_${dayString}`];
+           let selectedValue = savedStatus;
+           if (!selectedValue || selectedValue === 'CORRECT') {
+               selectedValue = systemStatusNormalized;
+           }
+
+           // Logic to color the card based on the active status
+           let cardClass = 'border-slate-700 bg-slate-800';
+           let selectClass = 'border-slate-500 bg-slate-700 text-slate-200';
+           
+           if (selectedValue === 'ACTIVE' || selectedValue === 'WITHOUT_LOAD') {
+               cardClass = 'border-green-500/60 bg-green-900/20';
+               selectClass = 'border-green-500/60 bg-green-900/40 text-green-400';
+           } else if (selectedValue === 'DAY_OFF') {
+               cardClass = 'border-red-500/60 bg-red-900/20';
+               selectClass = 'border-red-500/60 bg-red-900/40 text-red-400';
+           } else if (selectedValue === 'NOT_STARTED' || selectedValue === 'CONTRACT_ENDED') {
+               cardClass = 'border-slate-500 border-dashed bg-slate-800/80';
+               selectClass = 'border-slate-500 bg-slate-800 text-slate-400';
+           }
+
+           // Note: Added class="bg-slate-800 text-slate-200" directly to <option> to fix dropdown weirdness
+           // Note: Removed the <label>Status</label>
+           weekHtml += `
+               <div id="day-card-${dayString}" class="day-card ${cardClass} border rounded-xl p-2 sm:p-3 shadow-sm hover:border-blue-500 transition-all flex flex-col">
+                   <div class="flex-grow">
+                       <p class="font-bold text-white text-center text-sm lg:text-base">${currentDay.toLocaleDateString(undefined, { weekday: 'long' })}</p>
+                       <p class="text-[11px] text-slate-400 text-center font-medium mt-0.5">${dayString}</p>
+                   </div>
+                   <div class="mt-auto pt-3 flex-shrink-0">
+                       <select data-date="${dayString}" class="status-select w-full py-1.5 px-1 border ${selectClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs font-bold appearance-none cursor-pointer transition-colors" ${isWeekVerified ? 'disabled' : ''} style="text-align-last: center;">
+                           ${statusOptions.map(opt => `<option class="bg-slate-800 text-slate-200" value="${opt}" ${selectedValue === opt ? 'selected' : ''}>${opt.replace(/_/g, ' ')}</option>`).join('')}
+                       </select>
+                   </div>
+               </div>`;
+       }
+       weekHtml += `</div></div>`;
+       activityArea.innerHTML = weekHtml;
         
         if (isWeekVerified) {
             actionButton.classList.add('hidden');
@@ -2697,6 +2757,9 @@ function initDispatcherView(
         payDateSelect.disabled = false;
 
         ui.hideLoadingOverlay();
+        
+        // Force the full list to show up immediately on load
+        renderDriverList(); 
 
         if (isTutorialMode) {
             startTutorial(() => init(false));
@@ -2723,12 +2786,29 @@ function initDispatcherView(
 
             if (status === originalStatus) {
                 delete currentOverrides[date];
-                card.classList.remove('status-override');
             } else {
                 currentOverrides[date] = status;
-                card.classList.add('status-override');
-                card.classList.remove('status-confirmed');
             }
+            
+            // Clean slate: Remove ALL possible status color classes from the card and the select dropdown
+            card.classList.remove('border-green-500/60', 'bg-green-900/20', 'border-red-500/60', 'bg-red-900/20', 'border-slate-500', 'border-dashed', 'bg-slate-800/80', 'border-slate-700', 'bg-slate-800');
+            e.target.classList.remove('border-green-500/60', 'bg-green-900/40', 'text-green-400', 'border-red-500/60', 'bg-red-900/40', 'text-red-400', 'border-slate-500', 'bg-slate-800', 'text-slate-400', 'bg-slate-700', 'text-slate-200');
+
+            // Apply correct new status classes
+            if (status === 'ACTIVE' || status === 'WITHOUT_LOAD') {
+                card.classList.add('border-green-500/60', 'bg-green-900/20');
+                e.target.classList.add('border-green-500/60', 'bg-green-900/40', 'text-green-400');
+            } else if (status === 'DAY_OFF') {
+                card.classList.add('border-red-500/60', 'bg-red-900/20');
+                e.target.classList.add('border-red-500/60', 'bg-red-900/40', 'text-red-400');
+            } else if (status === 'NOT_STARTED' || status === 'CONTRACT_ENDED') {
+                card.classList.add('border-slate-500', 'border-dashed', 'bg-slate-800/80');
+                e.target.classList.add('border-slate-500', 'bg-slate-800', 'text-slate-400');
+            } else {
+                card.classList.add('border-slate-700', 'bg-slate-800');
+                e.target.classList.add('border-slate-500', 'bg-slate-700', 'text-slate-200');
+            }
+
             updateButtonState();
         }
     });
