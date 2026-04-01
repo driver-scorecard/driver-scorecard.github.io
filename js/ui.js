@@ -95,7 +95,12 @@ export function renderTableHeader(orderedColumnKeys, visibleColumnKeys, pinnedCo
         th.scope = 'col';
         th.dataset.key = key;
         th.draggable = true;
-        th.className = `group px-4 py-2 text-xs font-semibold text-slate-400 uppercase tracking-wider bg-slate-800 border-b border-slate-700 ${config.class}`;
+        
+        let headerClass = `group px-4 py-2 text-xs font-semibold text-slate-400 uppercase tracking-wider bg-slate-800 border-b border-slate-700 ${config.class}`;
+        if (['totalTpog', 'bonuses', 'penalties', 'escrowDeduct'].includes(key)) {
+            headerClass = headerClass.replace('text-center', '') + ' text-left';
+        }
+        th.className = headerClass;
         
         // --- NEW: Bulk Actions in Header for Admin ---
         let headerContent = config.title;
@@ -179,6 +184,10 @@ export function renderTable(data, state, currentUser) {
             cell.dataset.key = key;
             
             let cellClass = `px-4 py-2 whitespace-nowrap ${config.class}`;
+            if (['totalTpog', 'bonuses', 'penalties', 'escrowDeduct'].includes(key)) {
+                cellClass = cellClass.replace('text-center', '') + ' text-left';
+            }
+            
             const payDate = driver.pay_date.split('T')[0];
             const overrideKey = `${driver.id}_${payDate}`;
             const activeOverride = driver.isLocked ? driver.distanceSource : overriddenDistances[overrideKey];
@@ -1811,15 +1820,19 @@ export function openActivityHistoryModal(driver, mileageData, settings, daysTake
             let colorClass = 'activity-red'; 
             const statuses = (activity.statuses || '').toUpperCase();
 
-            if (statuses.includes('NOT_STARTED') || statuses.includes('CONTRACT_ENDED')) {
+            // Use the overridden status if it exists, otherwise use the original
+            const effectiveStatus = (activity.isOverridden && activity.statuses !== 'CORRECT') ? activity.statuses : statuses;
+
+            if (effectiveStatus.includes('NOT_STARTED') || effectiveStatus.includes('CONTRACT_ENDED')) {
                 colorClass = 'activity-grey';
-            } else if (statuses.includes('DAY_OFF')) {
+            } else if (effectiveStatus.includes('DAY_OFF')) {
                 colorClass = 'activity-red';
-            } else if (statuses.includes('ACTIVE') || statuses.includes('WITHOUT_LOAD')) {
+            } else if (effectiveStatus.includes('ACTIVE') || effectiveStatus.includes('WITHOUT_LOAD')) {
                 colorClass = 'activity-green';
-            } else if (activity.mileage > 0) {
+            } else if (activity.mileage > 0 && !activity.isOverridden) { 
+                // Only fall back to mileage if dispatch hasn't explicitly set a status
                 colorClass = 'activity-green';
-            } else if (statuses.includes('NO DATA')) {
+            } else if (effectiveStatus.includes('NO DATA')) {
                 colorClass = 'activity-grey';
             } else {
                 colorClass = 'activity-red';
@@ -1901,7 +1914,7 @@ export function openActivityHistoryModal(driver, mileageData, settings, daysTake
                 </div>
 
                 <div class="flex items-center justify-end min-w-0">
-                    ${statsSegment}
+                    ${statsSegment ? `<div class="bg-gradient-to-r from-blue-900/40 to-slate-900/60 border border-blue-500/20 rounded-lg py-1.5 px-3 shadow-inner">${statsSegment}</div>` : ''}
                 </div>
             </div>`;
         
