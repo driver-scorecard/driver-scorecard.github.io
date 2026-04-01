@@ -1914,7 +1914,7 @@ export function openActivityHistoryModal(driver, mileageData, settings, daysTake
                 </div>
 
                 <div class="flex items-center justify-end min-w-0">
-                    ${statsSegment ? `<div class="bg-gradient-to-r from-blue-900/40 to-slate-900/60 border border-blue-500/20 rounded-lg py-1.5 px-3 shadow-inner">${statsSegment}</div>` : ''}
+                    ${statsSegment ? `<div class="py-1.5 pr-2">${statsSegment}</div>` : ''}
                 </div>
             </div>`;
         
