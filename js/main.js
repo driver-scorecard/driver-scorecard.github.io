@@ -954,6 +954,40 @@ userProfilesTableBody.addEventListener('click', async (e) => {
             return;
         }
 
+        // --- NEW: Admin Click on Weekly Activity Column ---
+        if (e.target.closest('.admin-verify-popup-trigger') && !e.target.closest('.show-history-btn')) {
+            e.stopPropagation();
+            if (!currentUser || currentUser.role.trim() !== 'Admin') return;
+            
+            const trigger = e.target.closest('.admin-verify-popup-trigger');
+            const driverId = trigger.dataset.driverId;
+            const driver = processedDriversForDate.find(d => d.id == driverId);
+            if (!driver || driver.isLocked) return;
+
+            // Route directly to the Verification view and auto-select this driver
+            // This safely re-uses your complex 7-day override and note saving logic!
+            switchView('dispatcher');
+            
+            // Wait for the view to switch, then auto-search and click the driver
+            setTimeout(() => {
+                const searchInput = document.getElementById('dispatcher-driver-search');
+                if (searchInput) {
+                    searchInput.value = driver.name;
+                    searchInput.dispatchEvent(new Event('input'));
+                    
+                    setTimeout(() => {
+                        const driverItem = document.querySelector(`.driver-list-item[data-driver-name="${driver.name}"]`);
+                        if (driverItem) {
+                            driverItem.click();
+                            // Scroll down slightly so the verification area is centered like a popup
+                            document.getElementById('activity-confirmation-area').scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        }
+                    }, 150);
+                }
+            }, 100);
+            return;
+        }
+
         if (e.target.closest('.lock-btn')) {
             e.stopPropagation();
             
