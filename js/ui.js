@@ -463,6 +463,13 @@ export function renderTable(data, state, currentUser) {
                                 ${noteHtml}
                             </div>
                            </div>`;
+
+                // Only allow Admins to click the cell to verify/edit. Everyone else gets the old view.
+                if (currentUser && currentUser.role.trim() === 'Admin' && !driver.isLocked) {
+                    content = `<div class="admin-verify-popup-trigger w-full h-full cursor-pointer hover:bg-slate-700/50 rounded transition-colors flex items-center justify-center" data-driver-id="${driver.id}" title="Click to verify/edit days and note">
+                                ${content}
+                               </div>`;
+                }
             } else {
                 content = '-';
             }
