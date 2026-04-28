@@ -412,20 +412,33 @@ export async function loadDispatcherOverrides() {
     const cachedData = getCachedData(cacheKey);
     if (cachedData) return Promise.resolve(cachedData);
 
-    // FIX: Added .limit(10000) to fetch up to 10,000 rows instead of the default 1,000
-    const { data, error } = await supabase
-        .from('dispatcher_overrides')
-        .select('*')
-        .limit(10000);
+    let allData = [];
+    let from = 0;
+    const step = 1000;
+    let fetchMore = true;
 
-    if (error) {
-        console.error("Failed to load dispatcher overrides:", error);
-        return {};
+    while (fetchMore) {
+        const { data, error } = await supabase
+            .from('dispatcher_overrides')
+            .select('*')
+            .range(from, from + step - 1);
+
+        if (error) {
+            console.error("Failed to load dispatcher overrides:", error);
+            return {};
+        }
+
+        allData = allData.concat(data);
+        if (data.length < step) {
+            fetchMore = false;
+        } else {
+            from += step;
+        }
     }
 
     // Transform into the Map expected by the app: { "DriverName_Date": "Status" }
     const overrideMap = {};
-    data.forEach(row => {
+    allData.forEach(row => {
         const key = `${row.driver_name}_${row.date}`;
         overrideMap[key] = row.status;
     });
@@ -463,20 +476,33 @@ export async function loadWeeklyNotes() {
     const cachedData = getCachedData(cacheKey);
     if (cachedData) return Promise.resolve(cachedData);
 
-    // FIX: Added .limit(10000) to fetch up to 10,000 rows instead of the default 1,000
-    const { data, error } = await supabase
-        .from('weekly_notes')
-        .select('*')
-        .limit(10000);
+    let allData = [];
+    let from = 0;
+    const step = 1000;
+    let fetchMore = true;
 
-    if (error) {
-        console.error("Failed to load weekly notes:", error);
-        return {};
+    while (fetchMore) {
+        const { data, error } = await supabase
+            .from('weekly_notes')
+            .select('*')
+            .range(from, from + step - 1);
+
+        if (error) {
+            console.error("Failed to load weekly notes:", error);
+            return {};
+        }
+
+        allData = allData.concat(data);
+        if (data.length < step) {
+            fetchMore = false;
+        } else {
+            from += step;
+        }
     }
 
     // Transform into the Map expected by the app: { "DriverName_Date": "Note" }
     const notesMap = {};
-    data.forEach(row => {
+    allData.forEach(row => {
         const key = `${row.driver_name}_${row.pay_date}`;
         notesMap[key] = row.note;
     });
@@ -671,19 +697,33 @@ export async function loadLockedData() {
     const cachedData = getCachedData(cacheKey);
     if (cachedData) return Promise.resolve(cachedData);
 
-    // Fetch directly from Supabase
-    const { data, error } = await supabase
-        .from('locked_data')
-        .select('*');
+    let allData = [];
+    let from = 0;
+    const step = 1000;
+    let fetchMore = true;
 
-    if (error) {
-        console.error("Failed to load locked data from Supabase:", error);
-        throw new Error(error.message);
+    while (fetchMore) {
+        const { data, error } = await supabase
+            .from('locked_data')
+            .select('*')
+            .range(from, from + step - 1);
+
+        if (error) {
+            console.error("Failed to load locked data from Supabase:", error);
+            throw new Error(error.message);
+        }
+
+        allData = allData.concat(data);
+        if (data.length < step) {
+            fetchMore = false;
+        } else {
+            from += step;
+        }
     }
 
     // Transform array into the Map expected by the app: { "DriverID_Date": "JSONString" }
     const lockedMap = {};
-    data.forEach(row => {
+    allData.forEach(row => {
         const key = `${row.driver_id}_${row.pay_date}`;
         lockedMap[key] = row.locked_data;
     });
@@ -853,18 +893,32 @@ export async function loadMpgOverrides() {
     const cachedData = getCachedData(cacheKey);
     if (cachedData) return Promise.resolve(cachedData);
 
-    const { data, error } = await supabase
-        .from('mpg_overrides')
-        .select('*')
-        .limit(10000);
+    let allData = [];
+    let from = 0;
+    const step = 1000;
+    let fetchMore = true;
 
-    if (error) {
-        console.error("Failed to load MPG overrides:", error);
-        return {};
+    while (fetchMore) {
+        const { data, error } = await supabase
+            .from('mpg_overrides')
+            .select('*')
+            .range(from, from + step - 1);
+
+        if (error) {
+            console.error("Failed to load MPG overrides:", error);
+            return {};
+        }
+
+        allData = allData.concat(data);
+        if (data.length < step) {
+            fetchMore = false;
+        } else {
+            from += step;
+        }
     }
 
     const overrideMap = {};
-    data.forEach(row => {
+    allData.forEach(row => {
         const key = `${row.driver_id}_${row.pay_date}`;
         overrideMap[key] = row.source;
     });
