@@ -1112,8 +1112,8 @@ function generateReportSVG(driverData, settings, driversForDate) {
              case 'fuel':
                 const currentMpg = parseFloat(driverData.mpg);
                 const fuelBonus = reportData.bonuses['Fuel Efficiency']?.bonus || 0;
-                if (fuelBonus >= 0) { card.description = `${currentMpg.toFixed(1)} MPG puts you better than ${driverData.mpgPercentile}% of drivers.`; } 
-                else { card.description = `${currentMpg.toFixed(1)} MPG puts you worse than ${100 - driverData.mpgPercentile}% of drivers.`; }
+                if (fuelBonus >= 0) { card.description = `Your fuel efficiency puts you better than ${driverData.mpgPercentile}% of drivers.`; } 
+                else { card.description = `Your fuel efficiency puts you worse than ${100 - driverData.mpgPercentile}% of drivers.`; }
                 
                 if (reportData.bonuses['Fuel Efficiency']?.infoText) {
                     card.infoText = reportData.bonuses['Fuel Efficiency'].infoText;
