@@ -245,9 +245,9 @@ export function getDriverReportData(driver, settings, driversForDate = []) {
 
                 if (targetMpg > 0 && targetMpg > currentMpg) {
                     if (fuelBonus < 0) {
-                        infoText = `Reach ${targetMpg.toFixed(1)} MPG to remove the penalty.`;
+                        infoText = `Reach the Top ${100 - targetTier.threshold}% to remove the penalty.`;
                     } else {
-                        infoText = `Reach ${targetMpg.toFixed(1)} MPG for a +${targetTier.bonus.toFixed(1)}% bonus.`;
+                        infoText = `Reach the Top ${100 - targetTier.threshold}% for a +${targetTier.bonus.toFixed(1)}% bonus.`;
                     }
                 } else {
                     infoText = 'Keep up the great work!';
