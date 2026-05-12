@@ -1871,12 +1871,13 @@ async function initializeApp() {
 function checkMissingDataAndAlert() {
     if (!processedDriversForDate || processedDriversForDate.length === 0) return;
 
-    const hasAnyPrologs = processedDriversForDate.some(d => d.hasPrologsData);
+    // Only check for Samsara data existence
     const hasAnySamsara = processedDriversForDate.some(d => d.hasSamsaraData);
 
     let messages = [];
-    if (!hasAnyPrologs) messages.push("No ProLogs data found for this week.");
-    if (!hasAnySamsara) messages.push("No Samsara data found for this week.");
+    if (!hasAnySamsara) {
+        messages.push("No Samsara data found for this week.");
+    }
 
     if (messages.length > 0) {
         const combinedMessage = messages.join(" ") + " Please refresh the page or contact Mick if the issue persists.";
