@@ -119,8 +119,25 @@ function debounce(func, delay) {
 }
 
 function filterAndRenderTable() {
-    // Note: This function no longer runs the slow processDriverDataForDate calculation.
-    // It now uses the pre-calculated 'processedDriversForDate' array.
+    // --- ADMIN PAYROLL CHECK ---
+    const payrollBadge = document.getElementById('payroll-status-badge');
+    if (payrollBadge) {
+        if (currentUser && currentUser.role.trim() === 'Admin') {
+            // Check all TPOG drivers for the selected date
+            const tpogDrivers = processedDriversForDate.filter(d => d.contract_type === 'TPOG');
+            
+            // Show badge if there are TPOG drivers and at least one is NOT reviewed
+            const allVerified = tpogDrivers.length > 0 && tpogDrivers.every(d => d.isDispatcherReviewed);
+            
+            if (tpogDrivers.length > 0 && !allVerified) {
+                payrollBadge.classList.remove('hidden');
+            } else {
+                payrollBadge.classList.add('hidden');
+            }
+        } else {
+            payrollBadge.classList.add('hidden'); // Hide for everyone else
+        }
+    }
 
     const searchTerm = searchInput.value.toLowerCase();
     const filterLogic = document.querySelector('input[name="filter-logic"]:checked')?.value || 'AND';
