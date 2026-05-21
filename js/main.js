@@ -1592,9 +1592,10 @@ if (newUserRoleSelect && newUserAccessInput && addAccessBtn && accessTagsContain
     });
 
     newUserAccessInput.addEventListener('blur', () => {
+        // Increased timeout to 300ms so slow clicks aren't canceled
         setTimeout(() => {
             accessCustomDropdown.classList.add('hidden');
-        }, 150);
+        }, 300);
     });
 
     newUserAccessInput.addEventListener('input', () => {
@@ -1607,9 +1608,12 @@ if (newUserRoleSelect && newUserAccessInput && addAccessBtn && accessTagsContain
         }
     });
 
-    accessCustomDropdown.addEventListener('click', (e) => {
-        if (e.target.classList.contains('dropdown-item') && e.target.dataset.name) {
-            newUserAccessInput.value = e.target.dataset.name;
+    // Changed to 'mousedown' for instant triggering and used .closest() for accuracy
+    accessCustomDropdown.addEventListener('mousedown', (e) => {
+        const item = e.target.closest('.dropdown-item');
+        if (item && item.dataset.name) {
+            e.preventDefault(); // Prevents the input from losing focus
+            newUserAccessInput.value = item.dataset.name;
             addAccessName();
             accessCustomDropdown.classList.add('hidden');
         }
