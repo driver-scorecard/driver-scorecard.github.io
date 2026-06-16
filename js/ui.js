@@ -341,6 +341,7 @@ export function renderTable(data, state, currentUser) {
                     content = '-';
                 } else {
                     const isAdmin = currentUser && currentUser.role.trim() === 'Admin';
+                    const isFranchise = currentUser && currentUser.role.trim() === 'Franchise';
                     let contentHtml = `<div class="flex items-center justify-center gap-2 whitespace-nowrap">`;
 
                     // VIEW BUTTON (Common for both)
@@ -348,6 +349,7 @@ export function renderTable(data, state, currentUser) {
 
                     if (driver.isLocked) {
                         // --- Locked View ---
+                        // Leave it exactly as it was originally for locked views
                         contentHtml += viewBtn;
                         contentHtml += `<button class="download-btn p-0 rounded-full hover:bg-slate-700" data-driver-id="${driver.id}" title="Download Automatic Report"><svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg></button>`;
                         
@@ -358,11 +360,23 @@ export function renderTable(data, state, currentUser) {
                         }
                     } else {
                         // --- Unlocked View ---
-                        contentHtml += `<button class="copy-btn p-0 rounded-full hover:bg-slate-700" data-driver-id="${driver.id}" title="Copy Report Explanation"><svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg></button>
-                                    <button class="edit-btn p-0 rounded-full hover:bg-slate-700" data-driver-id="${driver.id}" title="Edit & Download Report"><svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L15.232 5.232z"></path></svg></button>
-                                    ${viewBtn}
-                                    <button class="download-btn p-0 rounded-full hover:bg-slate-700" data-driver-id="${driver.id}" title="Download Automatic Report"><svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg></button>
-                                    <button class="lock-btn p-0 rounded-full hover:bg-slate-700 text-slate-400" data-driver-id="${driver.id}" title="Lock Week"><svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path d="M10 2a5 5 0 00-5 5v2a2 2 0 00-2 2v5a2 2 0 002 2h10a2 2 0 002-2v-5a2 2 0 00-2-2V7a5 5 0 00-5-5zM8.5 7V5.5a1.5 1.5 0 113 0V7h-3z" /></svg></button>`;
+                        
+                        if (!isFranchise) {
+                            // Copy Report Explanation (Restricted for Franchise)
+                            contentHtml += `<button class="copy-btn p-0 rounded-full hover:bg-slate-700" data-driver-id="${driver.id}" title="Copy Report Explanation"><svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg></button>`;
+                            
+                            // Edit & Download Report (Restricted for Franchise)
+                            contentHtml += `<button class="edit-btn p-0 rounded-full hover:bg-slate-700" data-driver-id="${driver.id}" title="Edit & Download Report"><svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L15.232 5.232z"></path></svg></button>`;
+                        }
+
+                        // View Report (Everyone)
+                        contentHtml += `${viewBtn}`;
+                        
+                        // Download Automatic Report & Lock (Restricted for Franchise)
+                        if (!isFranchise) {
+                            contentHtml += `<button class="download-btn p-0 rounded-full hover:bg-slate-700" data-driver-id="${driver.id}" title="Download Automatic Report"><svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg></button>
+                                        <button class="lock-btn p-0 rounded-full hover:bg-slate-700 text-slate-400" data-driver-id="${driver.id}" title="Lock Week"><svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path d="M10 2a5 5 0 00-5 5v2a2 2 0 00-2 2v5a2 2 0 002 2h10a2 2 0 002-2v-5a2 2 0 00-2-2V7a5 5 0 00-5-5zM8.5 7V5.5a1.5 1.5 0 113 0V7h-3z" /></svg></button>`;
+                        }
                         
                         if (isAdmin) {
                             contentHtml += `<input type="checkbox" class="driver-select-checkbox w-4 h-4 rounded bg-slate-800 border-slate-600 text-blue-600 focus:ring-blue-500 focus:ring-offset-slate-900 cursor-pointer ml-2" style="color-scheme: dark;" value="${driver.id}" title="Select Driver">`;
