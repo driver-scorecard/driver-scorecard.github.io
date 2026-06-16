@@ -238,8 +238,8 @@ function filterAndRenderTable() {
         });
     }
 
-    // Filter for Locked Data (Driver Reps, Driver Rep Leads, Recruiters, All TPOG View, Team & Franchise)
-    if (currentUser && (currentUser.role.trim() === 'Driver Rep' || currentUser.role.trim() === 'Driver Rep Lead' || currentUser.role.trim() === 'Recruiter' || currentUser.role.trim() === 'Recruiter Team' || currentUser.role.trim() === 'All TPOG View' || currentUser.role.trim() === 'Team' || currentUser.role.trim() === 'Franchise')) {
+    // Filter for Locked Data (Driver Reps, Driver Rep Leads, Recruiters, All TPOG View, & Team)
+    if (currentUser && (currentUser.role.trim() === 'Driver Rep' || currentUser.role.trim() === 'Driver Rep Lead' || currentUser.role.trim() === 'Recruiter' || currentUser.role.trim() === 'Recruiter Team' || currentUser.role.trim() === 'All TPOG View' || currentUser.role.trim() === 'Team')) {
         filteredDrivers = filteredDrivers.filter(driver => driver.isLocked === true);
     }
 
@@ -1933,7 +1933,7 @@ function showMainApp() {
         
         // Filter out dates that have no locked TPOG drivers for roles that only see locked data
         if (currentUser) {
-            const lockedOnlyRoles = ['Driver Rep', 'Driver Rep Lead', 'Recruiter', 'Recruiter Team', 'All TPOG View', 'Team', 'Franchise'];
+            const lockedOnlyRoles = ['Driver Rep', 'Driver Rep Lead', 'Recruiter', 'Recruiter Team', 'All TPOG View', 'Team'];
             if (lockedOnlyRoles.includes(currentUser.role.trim())) {
                 payDates = payDates.filter(date => {
                     return driversForUser.some(d => {
