@@ -3,7 +3,7 @@
  * * Contains all functions that directly manipulate the DOM, such as rendering
  * tables, opening/closing panels, and updating UI elements.
  */
-import { calculateMpgPercentile, calculateSpeedingPercentile, getDriverReportData, getContractStatusForDay } from './calculations.js';
+import { calculateMpgPercentile, calculateSpeedingPercentile, getDriverReportData, getContractStatusForDay, getFuelInfoText } from './calculations.js';
 import { columnConfig } from './config.js';
 import { mergeFuelData } from './fuelTankAnalysis.js';
 
@@ -1129,20 +1129,14 @@ function generateReportSVG(driverData, settings, driversForDate) {
                 if (fuelBonus >= 0) { card.description = `Your fuel efficiency puts you better than ${driverData.mpgPercentile}% of drivers.`; } 
                 else { card.description = `Your fuel efficiency puts you worse than ${100 - driverData.mpgPercentile}% of drivers.`; }
                 
-                if (reportData.bonuses['Fuel Efficiency']?.infoText) {
-                    card.infoText = reportData.bonuses['Fuel Efficiency'].infoText;
-                } else {
-                    const sortedTiers = [...settingsToUse.mpgPercentileTiers].sort((a, b) => a.threshold - b.threshold);
-                    let targetTier = null;
-                    if (fuelBonus < 0) { targetTier = sortedTiers.find(t => t.bonus >= 0); } 
-                    else { targetTier = sortedTiers.find(t => t.bonus > fuelBonus); }
-                    
-                    if (targetTier) card.infoText = `Reach ${targetTier.threshold} percentile for next bonus.`;
-                    else card.infoText = 'Maximum fuel bonus reached.';
-                }
+                // Locked snapshots can still hold the old, wrong "Keep up the great work!" hint; rebuild it from the tier.
+                const storedFuelInfo = reportData.bonuses['Fuel Efficiency']?.infoText;
+                card.infoText = (storedFuelInfo && storedFuelInfo !== 'Keep up the great work!')
+                    ? storedFuelInfo
+                    : getFuelInfoText(fuelBonus, settingsToUse.mpgPercentileTiers);
                 card.combinedText = `${card.description} ${card.infoText}`;
                 break;
-             case 'safety': const bonusAwarded = (reportData.bonuses['Safety Score']?.bonus || 0) > 0; const scoreMet = driverData.safetyScore >= settingsToUse.safetyScoreThreshold; const milesMet = driverData.milesWeek >= settingsToUse.safetyScoreMileageThreshold; const hasSpeeding = driverData.speedingAlerts > 0; if (bonusAwarded) { card.description = 'Good score and miles requirement met.'; card.infoText = 'Bonus requirements met.'; } else if (!scoreMet) { card.description = `Score is ${driverData.safetyScore}%. Need ${settingsToUse.safetyScoreThreshold}% to qualify.`; card.infoText = `Improve score to earn the bonus.`; } else if (!milesMet) { card.description = `To qualify for the safety bonus, meet the ${settingsToUse.safetyScoreMileageThreshold} weekly miles criteria.`; card.infoText = `Drive more to unlock this bonus.`; } else if (hasSpeeding && settingsToUse.safetyBonusForfeitedOnSpeeding) { card.description = `Bonus forfeited due to ${driverData.speedingAlerts} speeding alert(s).`; card.infoText = `Needs 0 speeding alerts to unlock +${settingsToUse.safetyScoreBonus.toFixed(1)}%`; } else { card.description = 'Safety bonus not awarded this week.'; card.infoText = 'Check requirements for details.'; } break;
+             case 'safety': const bonusAwarded = (reportData.bonuses['Safety Score']?.bonus || 0) > 0; const scoreMet = driverData.safetyScore >= settingsToUse.safetyScoreThreshold; const milesMet = driverData.stubMiles >= settingsToUse.safetyScoreMileageThreshold; /* same miles the bonus is calculated on */ const hasSpeeding = driverData.speedingAlerts > 0; if (bonusAwarded) { card.description = 'Good score and miles requirement met.'; card.infoText = 'Bonus requirements met.'; } else if (!scoreMet) { card.description = `Score is ${driverData.safetyScore}%. Need ${settingsToUse.safetyScoreThreshold}% to qualify.`; card.infoText = `Improve score to earn the bonus.`; } else if (!milesMet) { card.description = `To qualify for the safety bonus, meet the ${settingsToUse.safetyScoreMileageThreshold} weekly miles criteria.`; card.infoText = `Drive more to unlock this bonus.`; } else if (hasSpeeding && settingsToUse.safetyBonusForfeitedOnSpeeding) { card.description = `Bonus forfeited due to ${driverData.speedingAlerts} speeding alert(s).`; card.infoText = `Needs 0 speeding alerts to unlock +${settingsToUse.safetyScoreBonus.toFixed(1)}%`; } else { card.description = 'Safety bonus not awarded this week.'; card.infoText = 'Check requirements for details.'; } break;
              case 'weeksOut':
                 const weeksOutValue = driverData.weeksOut || 0;
                 const weeksOutBonus = reportData.bonuses['Weeks Out']?.bonus || 0;
