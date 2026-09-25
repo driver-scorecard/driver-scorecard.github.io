@@ -54,6 +54,29 @@ export const getTieredBonusDetails = (value, tiers) => {
 };
 
 /**
+ * Fuel card hint, chosen from the tier the driver is in.
+ * The old version compared the driver's MPG to a fleet "target MPG", which broke on
+ * ties and told drivers with a fuel penalty "Keep up the great work!".
+ * @param {number} fuelBonus The fuel bonus/penalty the driver got.
+ * @param {Array<Object>} mpgPercentileTiers The fuel tiers, each with 'threshold' and 'bonus'.
+ * @returns {string} The hint text.
+ */
+export function getFuelInfoText(fuelBonus, mpgPercentileTiers) {
+    const sortedTiers = [...(mpgPercentileTiers || [])].sort((a, b) => a.threshold - b.threshold);
+    const targetTier = fuelBonus < 0
+        ? sortedTiers.find(t => t.bonus >= 0)
+        : sortedTiers.find(t => t.bonus > fuelBonus);
+
+    if (fuelBonus < 0) {
+        return targetTier
+            ? `Reach the Top ${100 - targetTier.threshold}% to remove the penalty.`
+            : 'Improve MPG to reduce the penalty.';
+    }
+    if (!targetTier) return 'Maximum fuel bonus reached.';
+    return `Reach the Top ${100 - targetTier.threshold}% for a +${targetTier.bonus.toFixed(1)}% bonus.`;
+}
+
+/**
  * Calculates a complete TPOG report for a single driver.
  * @param {Object} driver The driver object.
  * @param {Object} settings The application settings object.
@@ -220,44 +243,7 @@ export function getDriverReportData(driver, settings, driversForDate = []) {
             const percentileDetails = getTieredBonusDetails(driver.mpgPercentile, settings.mpgPercentileTiers);
             fuelBonus = percentileDetails.bonus;
 
-            // InfoText Calculation
-            const currentMpg = parseFloat(driver.mpg);
-            const sortedTiers = [...settings.mpgPercentileTiers].sort((a, b) => a.threshold - b.threshold);
-            let targetTier = null;
-            
-            if (fuelBonus < 0) {
-                targetTier = sortedTiers.find(t => t.bonus >= 0);
-            } else {
-                targetTier = sortedTiers.find(t => t.bonus > fuelBonus);
-            }
-
-            if (targetTier && driversForDate && driversForDate.length > 0) {
-                const targetPercentile = targetTier.threshold;
-                const allMpgValues = driversForDate.map(d => parseFloat(d.mpg)).filter(mpg => mpg > 0).sort((a, b) => a - b);
-                let targetMpg = 0;
-
-                if (allMpgValues.length > 1) {
-                    const targetIndex = Math.ceil((targetPercentile / 100) * (allMpgValues.length - 1));
-                    targetMpg = allMpgValues[targetIndex];
-                } else if (allMpgValues.length === 1) {
-                    targetMpg = allMpgValues[0];
-                }
-
-                if (targetMpg > 0 && targetMpg > currentMpg) {
-                    if (fuelBonus < 0) {
-                        infoText = `Reach the Top ${100 - targetTier.threshold}% to remove the penalty.`;
-                    } else {
-                        infoText = `Reach the Top ${100 - targetTier.threshold}% for a +${targetTier.bonus.toFixed(1)}% bonus.`;
-                    }
-                } else {
-                    infoText = 'Keep up the great work!';
-                }
-            } else if (targetTier) {
-                // Change "percentile" to "Top X%"
-                infoText = fuelBonus < 0 ? 'Improve MPG to remove penalty.' : `Reach the Top ${100 - targetTier.threshold}% of the fleet for the next bonus.`;
-            } else {
-                infoText = 'Maximum fuel bonus reached.';
-            }
+            infoText = getFuelInfoText(fuelBonus, settings.mpgPercentileTiers);
 
         } else if (driverMiles < fuelMileageThreshold) {
             infoText = `Drive ${fuelMileageThreshold} miles to qualify for fuel bonus.`;
@@ -924,6 +910,7 @@ export function processDriverDataForDate(driversForDate, mileageIndex, settings,
                 const lockedJSON = allLockedData[`${record.id}_${recordPayDateStr}`];
                 let lockedActivity = null;
                 let snapshotOffDays = null;
+                let snapshotAvailableOffDays = null;
                 if (lockedJSON) {
                     try {
                         const snapshot = JSON.parse(lockedJSON);
@@ -932,6 +919,10 @@ export function processDriverDataForDate(driversForDate, mileageIndex, settings,
                         }
                         if (snapshot.offDays !== undefined) {
                             snapshotOffDays = snapshot.offDays;
+                        }
+                        const lockedAvailable = parseFloat(snapshot.availableOffDays);
+                        if (Number.isFinite(lockedAvailable)) {
+                            snapshotAvailableOffDays = lockedAvailable;
                         }
                     } catch(e) {}
                 }
@@ -1082,7 +1073,10 @@ export function processDriverDataForDate(driversForDate, mileageIndex, settings,
                     if (resetTriggeredThisWeek) {
                         runningBalance = 0;
                     } else {
-                        const newStreakInWeeks = Math.floor(continuousDayStreak * dailyContribution);
+                        // FIX: Accrue on the week's PEAK streak, like getDriverReportData does.
+                        // The end-of-week streak is already 0 if a day off closed the week,
+                        // which silently dropped the days earned earlier that same week.
+                        const newStreakInWeeks = Math.floor(maxDaysThisWeek * dailyContribution);
                         if (newStreakInWeeks > oldStreakInWeeks) {
                             for (let i = oldStreakInWeeks + 1; i <= newStreakInWeeks; i++) {
                                 if (i === settings.timeOffStartAfterWeeks) {
@@ -1111,6 +1105,14 @@ export function processDriverDataForDate(driversForDate, mileageIndex, settings,
                         runningBalance -= daysOffInWeek;
                         if (runningBalance < 0) runningBalance = 0;
                     }
+                }
+
+                // --- 5. Locked weeks carry forward what the driver was shown ---
+                // Next week starts with (locked available - days off in the locked week),
+                // so the balance never disagrees with a week that is already locked.
+                const balanceWasReset = settings.weeksOutMethod === 'dailyAccrual' ? resetTriggeredThisWeek : hasNotStartedInWeek;
+                if (snapshotAvailableOffDays !== null && !balanceWasReset) {
+                    runningBalance = Math.max(0, snapshotAvailableOffDays - daysOffInWeek);
                 }
             }
         });
